@@ -1,7 +1,8 @@
-use chrono::{NaiveDate, NaiveTime};
-use serde::{Deserialize, Serialize};
-use serde_json;
 use std::io::stdout;
+
+use serde_json;
+
+use chrono::{NaiveDate, NaiveTime};
 
 use crossterm::{
     event::{self, Event, KeyCode},
@@ -10,54 +11,9 @@ use crossterm::{
 };
 use ratatui::{prelude::*, widgets::*};
 
+use wd::work_day::{DayType, WorkDay};
+
 const ORANGE: Color = Color::Rgb(255, 140, 0);
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(tag = "info")]
-#[serde(rename_all = "lowercase")]
-enum DayType {
-    Present {
-        start: NaiveTime,
-        end: NaiveTime,
-        break_start: NaiveTime,
-        break_end: NaiveTime,
-    },
-    Sick,
-}
-
-impl Default for DayType {
-    fn default() -> Self {
-        DayType::Sick
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct WorkDay {
-    date: NaiveDate,
-    #[serde(default)]
-    #[serde(flatten)]
-    day_type: DayType,
-}
-
-impl WorkDay {
-    fn to_string(&self) -> String {
-        match self.day_type {
-            DayType::Present { start, end, .. } => {
-                format!("{date} -> Present {start} - {end}", date = self.date)
-            }
-            DayType::Sick => {
-                format!("{date} -> Sick", date = self.date)
-            }
-        }
-    }
-
-    fn _was_sick(&self) -> bool {
-        match self.day_type {
-            DayType::Present { .. } => false,
-            DayType::Sick => true,
-        }
-    }
-}
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 enum EditField {
