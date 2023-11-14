@@ -8,10 +8,7 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
     ExecutableCommand,
 };
-use ratatui::{
-    prelude::*,
-    widgets::{canvas::Label, *},
-};
+use ratatui::{prelude::*, widgets::*};
 
 const ORANGE: Color = Color::Rgb(255, 140, 0);
 
@@ -272,10 +269,17 @@ enum AppMode {
     },
 }
 
+enum Message {
+    Info(String),
+    Error(String),
+    None,
+}
+
 struct AppState {
     days: Vec<WorkDay>,
     selected: usize,
     mode: AppMode,
+    message: Message,
 }
 
 fn render_edit_window(frame: &mut Frame, pos: &Rect, state: &AppState) {
@@ -393,7 +397,14 @@ fn handle_events_edit(state: &mut AppState) -> Result<bool, ()> {
                     KeyCode::Char('k') => *field = field.prev(edit_bufs.sick),
                     KeyCode::Char('s') => {
                         // TODO: error messages
-                        state.days[*index] = (&*edit_bufs).try_into().map_err(|err| ())?;
+                        match (&*edit_bufs).try_into() {
+                            Ok(val) => {
+                                state.days[*index] = val;
+                                state.message =
+                                    Message::Info(String::from("WorkDay parsed successfully"));
+                            }
+                            Err(err) => state.message = Message::Error(err),
+                        }
                     }
                     KeyCode::Esc | KeyCode::Char('h') => state.mode = AppMode::ListOnly,
                     KeyCode::Enter | KeyCode::Char('l') => {
@@ -512,20 +523,40 @@ fn ui(frame: &mut Frame, state: &AppState) {
     let list_size = 0.5;
     let mut list_area = frame.size();
     list_area.height = (list_area.height as f32 * list_size) as u16;
+    let edit_area = Rect {
+        x: list_area.x,
+        y: list_area.y + list_area.height,
+        width: list_area.width,
+        height: frame.size().height - list_area.height - 1,
+    };
+    let mut msg_area = frame.size();
+    msg_area.y += msg_area.height - 1;
+    msg_area.height = 1;
+
     frame.render_widget(Clear, frame.size());
 
     let mut list_active = true;
     if let AppMode::Edit { .. } = &state.mode {
-        let edit_pos = Rect {
-            x: list_area.x,
-            y: list_area.y + list_area.height,
-            width: list_area.width,
-            height: frame.size().height - list_area.height,
-        };
-        render_edit_window(frame, &edit_pos, state);
+        render_edit_window(frame, &edit_area, state);
         list_active = false;
     }
     render_list(frame, &list_area, state, list_active);
+
+    match &state.message {
+        Message::Info(msg) => frame.render_widget(
+            Block::default()
+                .title(msg.clone())
+                .style(Style::default().fg(Color::LightBlue).bold()),
+            msg_area,
+        ),
+        Message::Error(msg) => frame.render_widget(
+            Block::default()
+                .title(msg.clone())
+                .style(Style::default().fg(Color::LightYellow).bold()),
+            msg_area,
+        ),
+        Message::None => (),
+    }
 }
 
 fn load_days(file_path: &str) -> Result<Vec<WorkDay>, ()> {
@@ -543,6 +574,7 @@ fn main() -> Result<(), ()> {
         days: load_days("./work_times.json")?,
         selected: 0,
         mode: AppMode::ListOnly,
+        message: Message::None,
     };
 
     let mut terminal = Terminal::new(CrosstermBackend::new(stdout())).map_err(|err| {
