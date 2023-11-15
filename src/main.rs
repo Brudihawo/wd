@@ -1,6 +1,5 @@
 use clap::{Parser, Subcommand};
 use serde_json;
-use std::collections::HashMap;
 use std::io::{stdout, Stdout};
 
 use crossterm::{
@@ -10,7 +9,7 @@ use crossterm::{
 use ratatui::prelude::{CrosstermBackend, Terminal};
 
 use wd::app::{handle_events, render::render_application, AppMode, AppState, Message, ORANGE};
-use wd::stat::{self, StatUnit};
+use wd::disp_utils::print_stat;
 use wd::work_day::WorkDay;
 
 fn load_days(file_path: &str) -> Result<Vec<WorkDay>, ()> {
@@ -96,61 +95,6 @@ fn tui_loop(mut state: AppState) -> Result<(), ()> {
     Ok(())
 }
 
-fn hm_from_duration(duration: chrono::Duration) -> String {
-    let hours = duration.num_hours();
-    let minutes = duration.num_minutes() - hours * 60;
-    format!("{hours:2}:{minutes:02}")
-}
-
-fn print_stat(
-    weeks: &[(chrono::NaiveDate, StatUnit)],
-    total: &StatUnit,
-    employ_duration: &chrono::Duration,
-) -> Result<(), ()> {
-    use crossterm::style::{Color, Stylize};
-    let orange = match ORANGE {
-        ratatui::style::Color::Rgb(r, g, b) => Color::Rgb { r, g, b },
-        _ => unreachable!(),
-    };
-
-    println!(
-        "{}",
-        format!(
-            "{:12} {:10} {:7} {:11} {:9}",
-            "Week Start", "Week End", "Hours", "Active Days", "Sick Days"
-        )
-        .bold()
-        .with(orange)
-    );
-    println!("{}", "=".repeat(53));
-    for (week_start, stat) in weeks {
-        let week_end = week_start.week(chrono::Weekday::Mon).last_day();
-        println!(
-            "{:12} {:10} {:7} {:11} {:9}",
-            week_start.format("%d.%m.%y"),
-            week_end.format("%d.%m.%y"),
-            hm_from_duration(stat.work),
-            stat.active_days,
-            stat.sick_days,
-        );
-    }
-
-    let avg_work_per_week = chrono::Duration::minutes(
-        (total.work.num_minutes() as f64 / (employ_duration.num_days() as f64 / 7.0)) as i64,
-    );
-
-    println!(
-        "{} {} (avg {} per week, not excluding sick days)",
-        "Total Time:".bold().with(orange),
-        hm_from_duration(total.work),
-        hm_from_duration(avg_work_per_week)
-    );
-
-    println!("{} {}", "Sick Days:".bold().with(orange), total.sick_days);
-
-    return Ok(());
-}
-
 fn main() -> Result<(), ()> {
     let args = Args::parse();
     match args.action {
@@ -188,7 +132,8 @@ fn main() -> Result<(), ()> {
             return tui_loop(state);
         }
         Some(Action::Stat) => {
-            use crate::stat::*;
+            use wd::stat::{total_stats, weekly_stats};
+
             let mut days = load_days(&args.file_path)?;
             days.sort_by_key(|day| day.date);
             if days.len() == 0 {

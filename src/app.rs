@@ -1,4 +1,6 @@
+use crate::disp_utils::hm_from_duration;
 use crate::editor::{EditBufs, EditDayType, EditField, EditMode};
+use crate::stat::{total_stats, weekly_stats, StatUnit};
 use crate::work_day::{Break, DayType, WorkDay};
 
 use crossterm::event::{self, Event, KeyCode, KeyModifiers};
@@ -7,14 +9,16 @@ use ratatui::{
     widgets::{Block, Borders, Clear, List, ListItem, ListState},
 };
 
-use chrono::{Local, NaiveTime};
+use chrono::{Local, NaiveDate, NaiveTime};
 
 pub const ORANGE: Color = Color::Rgb(255, 140, 0);
 
+pub const MOVE_CLR: Color = ORANGE;
 pub const EDIT_MOVE_CLR: Color = Color::LightCyan;
 pub const EDIT_INS_CLR: Color = Color::LightYellow;
-pub const MOVE_CLR: Color = ORANGE;
 pub const HELP_CLR: Color = Color::LightGreen;
+pub const STAT_CLR: Color = Color::LightMagenta;
+
 const SCROLL_AMT: usize = 5;
 
 pub enum AppMode {
@@ -33,6 +37,12 @@ pub enum Message {
     None,
 }
 
+pub struct StatsState {
+    weekly: Vec<(NaiveDate, StatUnit)>,
+    total: StatUnit,
+    scroll: usize,
+}
+
 pub struct AppState {
     pub file_path: String,
     pub days: Vec<WorkDay>,
@@ -40,7 +50,7 @@ pub struct AppState {
     pub mode: AppMode,
     pub message: Message,
     pub help_popup: Option<usize>,
-    pub statistics: Option<usize>,
+    pub statistics: Option<StatsState>,
 }
 
 impl AppState {
@@ -121,7 +131,68 @@ pub fn handle_events_help(state: &mut AppState) -> Result<bool, ()> {
             }
         }
     }
-    return Ok(false);
+    Ok(false)
+}
+
+pub fn handle_events_stats(state: &mut AppState) -> Result<bool, ()> {
+    if let Event::Key(key) = event::read().map_err(|err| {
+        eprintln!("Could not read event: {err}");
+    })? {
+        if key.kind == event::KeyEventKind::Press {
+            match key.code {
+                KeyCode::Char('q') => return Ok(true),
+                KeyCode::Char('s') | KeyCode::Esc => state.statistics = None,
+                KeyCode::Char('j') => {
+                    state
+                        .statistics
+                        .iter_mut()
+                        .map(|val| {
+                            // TODO: wrap scrolling - somehow
+                            val.scroll += 1
+                        })
+                        .next();
+                }
+                KeyCode::Char('k') => {
+                    state
+                        .statistics
+                        .iter_mut()
+                        .map(|val| {
+                            if val.scroll > 0 {
+                                val.scroll -= 1;
+                            }
+                        })
+                        .next();
+                }
+                KeyCode::Char('d') if key.modifiers == KeyModifiers::CONTROL => {
+                    state
+                        .statistics
+                        .iter_mut()
+                        .map(|val| {
+                            // TODO: wrap scrolling - somehow
+                            val.scroll += 5;
+                        })
+                        .next();
+                }
+                KeyCode::Char('u') if key.modifiers == KeyModifiers::CONTROL => {
+                    state
+                        .statistics
+                        .iter_mut()
+                        .map(|val| {
+                            // TODO: wrap scrolling - somehow
+                            if val.scroll > 5 {
+                                val.scroll -= 5;
+                            } else {
+                                val.scroll = 0;
+                            }
+                        })
+                        .next();
+                }
+                _ => (),
+            }
+        }
+    }
+
+    Ok(false)
 }
 
 pub fn handle_events(state: &mut AppState) -> Result<bool, ()> {
@@ -130,6 +201,8 @@ pub fn handle_events(state: &mut AppState) -> Result<bool, ()> {
     })? {
         if state.help_popup.is_some() {
             return handle_events_help(state);
+        } else if state.statistics.is_some() {
+            return handle_events_stats(state);
         } else {
             match &state.mode {
                 AppMode::ListOnly => return handle_events_listonly(state),
@@ -185,7 +258,19 @@ fn handle_events_listonly(state: &mut AppState) -> Result<bool, ()> {
                         }
                     }
                 }
-                KeyCode::Char('s') => state.statistics = Some(0),
+                KeyCode::Char('s') => {
+                    state.statistics = {
+                        if let Some(total) = total_stats(&state.days) {
+                            Some(StatsState {
+                                weekly: weekly_stats(&state.days),
+                                total,
+                                scroll: 0,
+                            })
+                        } else {
+                            None
+                        }
+                    }
+                }
                 KeyCode::Char('+') => {
                     state.days.push(WorkDay {
                         date: Local::now().naive_local().date(),
@@ -316,7 +401,8 @@ fn handle_events_edit(state: &mut AppState) -> Result<bool, ()> {
 }
 
 pub mod render {
-    use ratatui::widgets::{Scrollbar, ScrollbarOrientation, ScrollbarState};
+    use ratatui::text::{Line, Text};
+    use ratatui::widgets::{Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState};
     use static_assertions::const_assert_eq;
 
     use super::*;
@@ -597,6 +683,143 @@ pub mod render {
         );
     }
 
+    fn render_statistics_popup(frame: &mut Frame, area: &Rect, stats: &StatsState) {
+        frame.render_widget(Clear, *area);
+        frame.render_widget(
+            Block::default()
+                .title("Statistics")
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(STAT_CLR).bold()),
+            *area,
+        );
+
+        let header = format!(
+            "{:12} {:10} {:7} {:11} {:9}",
+            "Week Start", "Week End", "Hours", "Active Days", "Sick Days"
+        )
+        .bold()
+        .fg(ORANGE);
+
+        let inner = Rect {
+            x: area.x + 1,
+            y: area.y + 1,
+            width: 54,
+            height: area.height - 2,
+        };
+
+        let stat_collect = stats
+            .weekly
+            .iter()
+            .map(|(week_start, stat)| {
+                let week_end = week_start.week(chrono::Weekday::Mon).last_day();
+                ListItem::new(format!(
+                    "{:12} {:10} {:7} {:11} {:9}",
+                    week_start.format("%d.%m.%y"),
+                    week_end.format("%d.%m.%y"),
+                    hm_from_duration(stat.work),
+                    stat.active_days,
+                    stat.sick_days,
+                ))
+            })
+            .collect::<Vec<_>>();
+
+        let num_lines = stat_collect.len() + 5;
+        let pos = stats.scroll % num_lines;
+
+        frame.render_stateful_widget(
+            List::new(stat_collect)
+                .block(Block::default().title(header))
+                .highlight_style(Style::default().bold())
+                .highlight_symbol("> "),
+            inner,
+            &mut ListState::default().with_selected(Some(pos)),
+        );
+
+        let scrollbar_area = Rect {
+            x: inner.x + inner.width,
+            y: inner.y,
+            width: 1,
+            height: inner.height,
+        };
+
+        frame.render_stateful_widget(
+            Scrollbar::default().orientation(ScrollbarOrientation::VerticalRight),
+            scrollbar_area,
+            &mut ScrollbarState::new(num_lines).position(pos),
+        );
+
+        let right = Rect {
+            x: inner.x + inner.width + 2,
+            y: inner.y,
+            width: area.width - inner.width - 4,
+            height: inner.height,
+        };
+
+        let total = Text::from(vec![
+            Line::from(vec![
+                "Work Time: ".fg(STAT_CLR),
+                hm_from_duration(stats.total.work).into(),
+            ]),
+            Line::from(vec![
+                "Avg:".fg(STAT_CLR),
+                hm_from_duration(chrono::Duration::minutes(
+                    stats.total.work.num_minutes() / stats.total.active_days as i64,
+                ))
+                .into(),
+                " / work day".into(),
+            ]),
+            "".into(),
+            Line::from(vec![
+                "Break Time:".fg(STAT_CLR),
+                hm_from_duration(stats.total.brk).into(),
+            ]),
+            Line::from(vec![
+                "Avg:".fg(STAT_CLR),
+                format!(
+                    "{} / work day",
+                    hm_from_duration(chrono::Duration::minutes(
+                        stats.total.brk.num_minutes() / stats.total.active_days as i64
+                    ))
+                )
+                .into(),
+            ]),
+            Line::from(""),
+            Line::from("Days".fg(STAT_CLR).bold()),
+            Line::from(vec![
+                "Worked: ".fg(STAT_CLR),
+                format!(
+                    "{:4} ({:.1}%)",
+                    stats.total.active_days,
+                    stats.total.active_days as f64
+                        / (stats.total.sick_days + stats.total.active_days) as f64
+                        * 100.0
+                )
+                .into(),
+            ]),
+            Line::from(vec![
+                "Sick:   ".fg(STAT_CLR),
+                format!(
+                    "{:4} ({:.1}%)",
+                    stats.total.sick_days,
+                    stats.total.sick_days as f64
+                        / (stats.total.sick_days + stats.total.active_days) as f64
+                        * 100.0
+                )
+                .into(),
+            ]),
+        ]);
+        frame.render_widget(
+            Paragraph::new(total).style(Style::default()).block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(STAT_CLR))
+                    .title("Total")
+                    .title_style(Style::default().bold().fg(STAT_CLR)),
+            ),
+            right,
+        );
+    }
+
     pub fn render_application(frame: &mut Frame, state: &AppState) {
         let list_size = 0.5;
         let mut list_area = frame.size();
@@ -623,6 +846,14 @@ pub mod render {
         render_message_area(frame, &msg_area, &state.message);
 
         if state.statistics.is_some() {
+            let stat_inset = 8;
+            let mut popup_area = frame.size();
+            popup_area.x += stat_inset;
+            popup_area.y += stat_inset;
+            popup_area.width -= stat_inset * 2;
+            popup_area.height -= stat_inset * 2;
+
+            render_statistics_popup(frame, &popup_area, state.statistics.as_ref().unwrap());
         }
 
         if state.help_popup.is_some() {
