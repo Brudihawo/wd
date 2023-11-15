@@ -53,13 +53,17 @@ fn main() -> Result<(), ()> {
     };
     let mut terminal = init_terminal()?;
 
-    let mut should_quit = false;
-    while !should_quit {
-        terminal.draw(|frame| ui(frame, &state)).map_err(|err| {
-            eprintln!("Could not draw UI: {err}");
-            should_quit = true;
-        })?;
-        should_quit = handle_events(&mut state)?;
+    loop {
+        match terminal.draw(|frame| ui(frame, &state)) {
+            Ok(_) => match handle_events(&mut state) {
+                Ok(false) => (),
+                Ok(true) | Err(()) => break,
+            },
+            Err(err) => {
+                eprintln!("Could not draw UI: {err}");
+                break;
+            }
+        };
     }
 
     deinit_terminal()?;
