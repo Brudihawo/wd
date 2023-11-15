@@ -1,3 +1,4 @@
+use clap::Parser;
 use serde_json;
 use std::io::{stdout, Stdout};
 
@@ -44,13 +45,34 @@ fn deinit_terminal() -> Result<(), ()> {
     Ok(())
 }
 
+#[derive(Parser, Debug)]
+#[command(
+    author,
+    version,
+    about = "Keep track of your work times in the terminal",
+    long_about = None
+)]
+struct Args {
+    #[arg(default_value = "work_times.json")]
+    file_path: String,
+}
+
 fn main() -> Result<(), ()> {
+    let args = Args::parse();
+
+    let days = load_days(&args.file_path)?;
     let mut state = AppState {
-        days: load_days("./work_times.json")?,
-        selected: 0,
+        selected: days.len() - 1,
+        message: Message::Info(format!(
+            "Loaded {len} entries from {path}",
+            len = days.len(),
+            path = args.file_path
+        )),
+        file_path: args.file_path,
+        days,
         mode: AppMode::ListOnly,
-        message: Message::None,
     };
+
     let mut terminal = init_terminal()?;
 
     loop {

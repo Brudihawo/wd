@@ -28,10 +28,37 @@ pub enum Message {
 }
 
 pub struct AppState {
+    pub file_path: String,
     pub days: Vec<WorkDay>,
     pub selected: usize,
     pub mode: AppMode,
     pub message: Message,
+}
+
+impl AppState {
+    pub fn write(&mut self) -> Result<(), ()> {
+        use std::fs::File;
+        use std::io::BufWriter;
+
+        let writer = BufWriter::new(File::create(&self.file_path).map_err(|err| {
+            self.message = Message::Error(format!("Could not open file {}: {err}", self.file_path))
+        })?);
+        let w_res = serde_json::to_writer_pretty(writer, &self.days);
+        match w_res {
+            Ok(()) => (),
+            Err(err) => {
+                self.message =
+                    Message::Error(format!("Could not open file {}: {err}", &self.file_path))
+            }
+        }
+        self.message = Message::Info(format!(
+            "Wrote {} entries to file {}",
+            self.days.len(),
+            &self.file_path
+        ));
+
+        Ok(())
+    }
 }
 
 pub fn handle_events(state: &mut AppState) -> Result<bool, ()> {
@@ -54,6 +81,13 @@ fn handle_events_listonly(state: &mut AppState) -> Result<bool, ()> {
         if key.kind == event::KeyEventKind::Press {
             match key.code {
                 KeyCode::Char('q') => return Ok(true),
+                KeyCode::Char('d') | KeyCode::Char('x') => {
+                    let removed = state.days.remove(state.selected);
+                    if state.selected == state.days.len() {
+                        state.selected = state.days.len() - 1;
+                    }
+                    state.message = Message::Info(format!("Removed entry of {}", removed.date))
+                }
                 KeyCode::Char('j') => {
                     if state.selected < state.days.len() - 1 {
                         state.selected += 1;
@@ -118,6 +152,9 @@ fn handle_events_edit(state: &mut AppState) -> Result<bool, ()> {
             match e_mode {
                 EditMode::Move => match key.code {
                     KeyCode::Char('q') => return Ok(true),
+                    KeyCode::Char('w') => {
+                        state.write()?;
+                    }
                     KeyCode::Char('j') => *field = field.next(edit_bufs.day_type),
                     KeyCode::Char('k') => *field = field.prev(edit_bufs.day_type),
                     KeyCode::Char('s') => {
