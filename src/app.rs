@@ -40,6 +40,7 @@ pub struct AppState {
     pub mode: AppMode,
     pub message: Message,
     pub help_popup: Option<usize>,
+    pub statistics: Option<usize>,
 }
 
 impl AppState {
@@ -184,6 +185,7 @@ fn handle_events_listonly(state: &mut AppState) -> Result<bool, ()> {
                         }
                     }
                 }
+                KeyCode::Char('s') => state.statistics = Some(0),
                 KeyCode::Char('+') => {
                     state.days.push(WorkDay {
                         date: Local::now().naive_local().date(),
@@ -583,8 +585,7 @@ pub mod render {
         frame.render_stateful_widget(
             List::new(lines)
                 .highlight_style(Style::default().bold().fg(Color::White))
-                .highlight_symbol("> ")
-            ,
+                .highlight_symbol("> "),
             inner,
             &mut ListState::default().with_selected(Some(pos)),
         );
@@ -596,7 +597,7 @@ pub mod render {
         );
     }
 
-    pub fn ui(frame: &mut Frame, state: &AppState) {
+    pub fn render_application(frame: &mut Frame, state: &AppState) {
         let list_size = 0.5;
         let mut list_area = frame.size();
         list_area.height = (list_area.height as f32 * list_size) as u16;
@@ -620,6 +621,9 @@ pub mod render {
 
         render_list(frame, &list_area, state, list_active);
         render_message_area(frame, &msg_area, &state.message);
+
+        if state.statistics.is_some() {
+        }
 
         if state.help_popup.is_some() {
             let help_inset = 8;

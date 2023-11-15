@@ -1,7 +1,7 @@
 use chrono::{Duration, NaiveDate, NaiveTime};
 use serde::{self, Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub struct Break {
     #[serde(rename = "break_start")]
     pub start: NaiveTime,
@@ -15,7 +15,7 @@ struct Worked {
     end: NaiveTime,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(tag = "info")]
 #[serde(rename_all = "lowercase")]
 pub enum DayType {

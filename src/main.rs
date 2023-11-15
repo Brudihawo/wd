@@ -1,4 +1,3 @@
-use chrono::{Duration, NaiveTime};
 use clap::{Parser, Subcommand};
 use serde_json;
 use std::collections::HashMap;
@@ -10,7 +9,8 @@ use crossterm::{
 };
 use ratatui::prelude::{CrosstermBackend, Terminal};
 
-use wd::app::{handle_events, render::ui, AppMode, AppState, Message, ORANGE};
+use wd::app::{handle_events, render::render_application, AppMode, AppState, Message, ORANGE};
+use wd::stat::{self, StatUnit};
 use wd::work_day::WorkDay;
 
 fn load_days(file_path: &str) -> Result<Vec<WorkDay>, ()> {
@@ -80,7 +80,7 @@ fn tui_loop(mut state: AppState) -> Result<(), ()> {
     let mut terminal = init_terminal()?;
 
     loop {
-        match terminal.draw(|frame| ui(frame, &state)) {
+        match terminal.draw(|frame| render_application(frame, &state)) {
             Ok(_) => match handle_events(&mut state) {
                 Ok(false) => (),
                 Ok(true) | Err(()) => break,
@@ -96,93 +96,14 @@ fn tui_loop(mut state: AppState) -> Result<(), ()> {
     Ok(())
 }
 
-struct StatUnit {
-    work: chrono::Duration,
-    active_days: u8,
-
-    brk: chrono::Duration,
-
-    mean_start: chrono::NaiveTime,
-    mean_end: chrono::NaiveTime,
-}
-
-fn dur_since_mn(time: chrono::NaiveTime) -> chrono::Duration {
-    time - chrono::NaiveTime::from_hms_opt(0, 0, 0).unwrap()
-}
-
-impl StatUnit {
-    pub fn from_single_day(day: &WorkDay) -> Option<Self> {
-        use wd::work_day::DayType;
-        match &day.day_type {
-            DayType::Present { start, end, .. } | DayType::Unofficial { start, end, .. } => {
-                Some(Self {
-                    work: day.worked_time(),
-                    active_days: 1,
-                    brk: day.break_time(),
-                    mean_start: *start,
-                    mean_end: *end,
-                })
-            }
-            DayType::Sick => None,
-        }
-    }
-
-    pub fn update_mean_start(&mut self, start: &chrono::NaiveTime) {
-        let ms_since_mn = dur_since_mn(self.mean_start) * self.active_days as i32;
-        let cs_since_mn = dur_since_mn(*start);
-
-        let new_avg_duration = Duration::minutes(
-            (ms_since_mn + cs_since_mn).num_minutes() / (self.active_days + 1) as i64,
-        );
-        let hours = new_avg_duration.num_hours();
-        let minutes = new_avg_duration.num_minutes() - hours * 60;
-
-        self.mean_start = NaiveTime::from_hms_opt(hours as u32, minutes as u32, 0).unwrap();
-    }
-
-    pub fn update_mean_end(&mut self, end: &chrono::NaiveTime) {
-        let me_since_mn = dur_since_mn(self.mean_end) * self.active_days as i32;
-        let ce_since_mn = dur_since_mn(*end);
-
-        let new_avg_duration = Duration::minutes(
-            (me_since_mn + ce_since_mn).num_minutes() / (self.active_days + 1) as i64,
-        );
-        let hours = new_avg_duration.num_hours();
-        let minutes = new_avg_duration.num_minutes() - hours * 60;
-
-        self.mean_end = NaiveTime::from_hms_opt(hours as u32, minutes as u32, 0).unwrap();
-    }
-
-    pub fn push_day(&mut self, day: &WorkDay) {
-        use wd::work_day::DayType;
-        match &day.day_type {
-            DayType::Present { start, end, .. } | DayType::Unofficial { start, end, .. } => {
-                self.update_mean_start(start);
-                self.update_mean_end(end);
-                self.brk = self.brk + day.break_time();
-                self.work = self.work + day.worked_time();
-
-                self.active_days += 1;
-            }
-            DayType::Sick => (),
-        }
-    }
-}
-
-impl Default for StatUnit {
-    fn default() -> Self {
-        Self {
-            work: chrono::Duration::zero(),
-            active_days: 0,
-            brk: chrono::Duration::zero(),
-            mean_start: chrono::NaiveTime::from_hms_opt(8, 0, 0).unwrap(),
-            mean_end: chrono::NaiveTime::from_hms_opt(8, 0, 0).unwrap(),
-        }
-    }
+fn hm_from_duration(duration: chrono::Duration) -> String {
+    let hours = duration.num_hours();
+    let minutes = duration.num_minutes() - hours * 60;
+    format!("{hours:2}:{minutes:02}")
 }
 
 fn print_stat(
-    weeks: &[(&chrono::NaiveDate, &StatUnit)],
+    weeks: &[(chrono::NaiveDate, StatUnit)],
     total: &StatUnit,
     employ_duration: &chrono::Duration,
 ) -> Result<(), ()> {
@@ -192,34 +113,42 @@ fn print_stat(
         _ => unreachable!(),
     };
 
+    println!(
+        "{}",
+        format!(
+            "{:12} {:10} {:7} {:11} {:9}",
+            "Week Start", "Week End", "Hours", "Active Days", "Sick Days"
+        )
+        .bold()
+        .with(orange)
+    );
+    println!("{}", "=".repeat(53));
     for (week_start, stat) in weeks {
         let week_end = week_start.week(chrono::Weekday::Mon).last_day();
         println!(
-            "Week {} to {} {}",
+            "{:12} {:10} {:7} {:11} {:9}",
             week_start.format("%d.%m.%y"),
             week_end.format("%d.%m.%y"),
             hm_from_duration(stat.work),
+            stat.active_days,
+            stat.sick_days,
         );
     }
 
-    let avg_per_week = chrono::Duration::minutes(
+    let avg_work_per_week = chrono::Duration::minutes(
         (total.work.num_minutes() as f64 / (employ_duration.num_days() as f64 / 7.0)) as i64,
     );
 
     println!(
-        "{} {} (avg {} per week, not excluding sick days)\n",
+        "{} {} (avg {} per week, not excluding sick days)",
         "Total Time:".bold().with(orange),
         hm_from_duration(total.work),
-        hm_from_duration(avg_per_week)
+        hm_from_duration(avg_work_per_week)
     );
 
-    return Ok(());
-}
+    println!("{} {}", "Sick Days:".bold().with(orange), total.sick_days);
 
-fn hm_from_duration(duration: chrono::Duration) -> String {
-    let hours = duration.num_hours();
-    let minutes = duration.num_minutes() - hours * 60;
-    format!("{hours}h {minutes}m")
+    return Ok(());
 }
 
 fn main() -> Result<(), ()> {
@@ -239,6 +168,7 @@ fn main() -> Result<(), ()> {
                 days,
                 mode: AppMode::ListOnly,
                 help_popup: None,
+                statistics: None,
             };
             return tui_loop(state);
         }
@@ -253,39 +183,25 @@ fn main() -> Result<(), ()> {
                 days: Vec::new(),
                 mode: AppMode::ListOnly,
                 help_popup: None,
+                statistics: None,
             };
             return tui_loop(state);
         }
         Some(Action::Stat) => {
+            use crate::stat::*;
             let mut days = load_days(&args.file_path)?;
             days.sort_by_key(|day| day.date);
             if days.len() == 0 {
                 eprintln!("Can not stat on empty records");
             }
 
-            let mut stat_weeks: HashMap<chrono::NaiveDate, StatUnit> = HashMap::new();
-            let mut stat_total: Option<StatUnit> = None;
-
-            for day in days.iter() {
-                if let Some(total) = stat_total.as_mut() {
-                    total.push_day(day);
-                } else {
-                    stat_total = StatUnit::from_single_day(day);
-                }
-
-                if let Some(ws) = StatUnit::from_single_day(day) {
-                    stat_weeks
-                        .entry(day.date.week(chrono::Weekday::Mon).first_day())
-                        .and_modify(|entry| entry.push_day(day))
-                        .or_insert(ws);
-                }
-            }
-            let mut weeks = stat_weeks.iter().collect::<Vec<_>>();
+            let stat_total = total_stats(&days)
+                .ok_or(())
+                .map_err(|()| eprintln!("Could not compute total stats"))?;
+            let stat_weekly = weekly_stats(&days);
             let employ_duration = days.last().unwrap().date - days.first().unwrap().date;
 
-            weeks.sort_by_key(|(week_start, _)| *week_start);
-
-            return print_stat(&weeks, &stat_total.unwrap(), &employ_duration);
+            return print_stat(&stat_weekly, &stat_total, &employ_duration);
         }
     }
 }
