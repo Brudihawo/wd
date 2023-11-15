@@ -59,6 +59,18 @@ impl AppState {
 
         Ok(())
     }
+
+    pub fn next_day(&mut self) {
+        if self.selected < self.days.len() - 1 {
+            self.selected += 1;
+        }
+    }
+
+    pub fn prev_day(&mut self) {
+        if self.selected >= 1 {
+            self.selected -= 1;
+        }
+    }
 }
 
 pub fn handle_events(state: &mut AppState) -> Result<bool, ()> {
@@ -82,23 +94,19 @@ fn handle_events_listonly(state: &mut AppState) -> Result<bool, ()> {
             match key.code {
                 KeyCode::Char('q') => return Ok(true),
                 KeyCode::Char('w') => state.write()?,
-                KeyCode::Char('d') | KeyCode::Char('x') => {
+                KeyCode::Char('x') => {
+                    state.write()?;
+                    return Ok(true);
+                }
+                KeyCode::Char('d') => {
                     let removed = state.days.remove(state.selected);
                     if state.selected == state.days.len() {
                         state.selected = state.days.len() - 1;
                     }
                     state.message = Message::Info(format!("Removed entry of {}", removed.date))
                 }
-                KeyCode::Char('j') => {
-                    if state.selected < state.days.len() - 1 {
-                        state.selected += 1;
-                    }
-                }
-                KeyCode::Char('k') => {
-                    if state.selected >= 1 {
-                        state.selected -= 1;
-                    }
-                }
+                KeyCode::Char('j') => state.next_day(),
+                KeyCode::Char('k') => state.prev_day(),
                 KeyCode::Char('l') | KeyCode::Enter => {
                     state.mode = AppMode::Edit {
                         mode: EditMode::Move,
@@ -154,19 +162,38 @@ fn handle_events_edit(state: &mut AppState) -> Result<bool, ()> {
                 EditMode::Move => match key.code {
                     KeyCode::Char('q') => return Ok(true),
                     KeyCode::Char('w') => state.write()?,
-                    KeyCode::Char('j') => *field = field.next(edit_bufs.day_type),
-                    KeyCode::Char('k') => *field = field.prev(edit_bufs.day_type),
-                    KeyCode::Char('s') => {
-                        // TODO: error messages
-                        match (&*edit_bufs).try_into() {
-                            Ok(val) => {
-                                state.days[*index] = val;
-                                state.message =
-                                    Message::Info(String::from("WorkDay parsed successfully"));
-                            }
-                            Err(err) => state.message = Message::Error(err),
+                    KeyCode::Char('s') => match (&*edit_bufs).try_into() {
+                        Ok(val) => {
+                            state.days[*index] = val;
+                            state.message =
+                                Message::Info(String::from("WorkDay parsed successfully"));
+                        }
+                        Err(err) => state.message = Message::Error(err),
+                    },
+                    KeyCode::Char('x') => {
+                        state.write()?;
+                        return Ok(true);
+                    }
+                    KeyCode::Tab => {
+                        state.next_day();
+                        state.mode = AppMode::Edit {
+                            mode: EditMode::Move,
+                            edit_bufs: EditBufs::from(&state.days[state.selected]),
+                            field: EditField::Date,
+                            index: state.selected,
                         }
                     }
+                    KeyCode::BackTab => {
+                        state.prev_day();
+                        state.mode = AppMode::Edit {
+                            mode: EditMode::Move,
+                            edit_bufs: EditBufs::from(&state.days[state.selected]),
+                            field: EditField::Date,
+                            index: state.selected,
+                        }
+                    }
+                    KeyCode::Char('j') => *field = field.next(edit_bufs.day_type),
+                    KeyCode::Char('k') => *field = field.prev(edit_bufs.day_type),
                     KeyCode::Esc | KeyCode::Char('h') => state.mode = AppMode::ListOnly,
                     KeyCode::Enter | KeyCode::Char('l') => {
                         if *field == EditField::DayType {
