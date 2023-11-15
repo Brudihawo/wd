@@ -11,209 +11,10 @@ use crossterm::{
 };
 use ratatui::{prelude::*, widgets::*};
 
-use wd::work_day::{DayType, WorkDay};
+use wd::editor::{EditBufs, EditDayType, EditField, EditMode};
+use wd::work_day::WorkDay;
 
 const ORANGE: Color = Color::Rgb(255, 140, 0);
-
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-enum EditField {
-    Date,
-    Start,
-    End,
-    BreakStart,
-    BreakEnd,
-    Sick,
-}
-
-impl EditField {
-    fn next(&self, sick: bool) -> Self {
-        use EditField::*;
-        if !sick {
-            match self {
-                Date => Sick,
-                Sick => Start,
-                Start => End,
-                End => BreakStart,
-                BreakStart => BreakEnd,
-                BreakEnd => Date,
-            }
-        } else {
-            match self {
-                Date => Sick,
-                Sick => Date,
-                Start | End | BreakStart | BreakEnd => unreachable!(),
-            }
-        }
-    }
-
-    fn prev(&self, sick: bool) -> Self {
-        use EditField::*;
-        if !sick {
-            match self {
-                Date => BreakEnd,
-                Sick => Date,
-                Start => Sick,
-                End => Start,
-                BreakStart => End,
-                BreakEnd => BreakStart,
-            }
-        } else {
-            match self {
-                Date => Sick,
-                Sick => Date,
-                Start | End | BreakStart | BreakEnd => unreachable!(),
-            }
-        }
-    }
-}
-
-struct EditBufs {
-    bufs: [[u8; 64]; 5],
-    cursors: [u8; 5],
-    sick: bool,
-}
-
-impl EditBufs {
-    fn new() -> Self {
-        Self {
-            bufs: [[0; 64]; 5],
-            cursors: [0; 5],
-            sick: false,
-        }
-    }
-
-    fn from_day(day: &WorkDay) -> Self {
-        use EditField as E;
-        let mut ret = Self::new();
-        ret.cursors[E::Date as usize] = ret[E::Date]
-            .iter_mut()
-            .zip(day.date.to_string().as_bytes())
-            .map(|(b, sb)| *b = *sb)
-            .count() as u8;
-        match day.day_type {
-            DayType::Present {
-                start,
-                end,
-                break_start,
-                break_end,
-            } => {
-                ret.cursors[E::Start as usize] = ret[E::Start]
-                    .iter_mut()
-                    .zip(start.to_string().as_bytes())
-                    .map(|(b, sb)| *b = *sb)
-                    .count() as u8;
-                ret.cursors[E::End as usize] = ret[E::End]
-                    .iter_mut()
-                    .zip(end.to_string().as_bytes())
-                    .map(|(b, sb)| *b = *sb)
-                    .count() as u8;
-                ret.cursors[E::BreakStart as usize] = ret[E::BreakStart]
-                    .iter_mut()
-                    .zip(break_start.to_string().as_bytes())
-                    .map(|(b, sb)| *b = *sb)
-                    .count() as u8;
-                ret.cursors[E::BreakEnd as usize] = ret[E::BreakEnd]
-                    .iter_mut()
-                    .zip(break_end.to_string().as_bytes())
-                    .map(|(b, sb)| *b = *sb)
-                    .count() as u8;
-            }
-            DayType::Sick => ret.sick = true,
-        }
-        ret
-    }
-
-    fn entry_mut(&mut self, index: EditField) -> (&mut [u8; 64], &mut u8) {
-        match index {
-            EditField::Date => (&mut self.bufs[0], &mut self.cursors[0]),
-            EditField::Start => (&mut self.bufs[1], &mut self.cursors[1]),
-            EditField::End => (&mut self.bufs[2], &mut self.cursors[2]),
-            EditField::BreakStart => (&mut self.bufs[3], &mut self.cursors[3]),
-            EditField::BreakEnd => (&mut self.bufs[4], &mut self.cursors[4]),
-            EditField::Sick => unreachable!(),
-        }
-    }
-
-    fn entry(&self, index: EditField) -> (&[u8; 64], &u8) {
-        match index {
-            EditField::Date => (&self.bufs[0], &self.cursors[0]),
-            EditField::Start => (&self.bufs[1], &self.cursors[1]),
-            EditField::End => (&self.bufs[2], &self.cursors[2]),
-            EditField::BreakStart => (&self.bufs[3], &self.cursors[3]),
-            EditField::BreakEnd => (&self.bufs[4], &self.cursors[4]),
-            EditField::Sick => unreachable!(),
-        }
-    }
-
-    fn text(&self, index: EditField) -> &str {
-        let (buf, cur) = self.entry(index);
-        std::str::from_utf8(&buf[..*cur as usize]).unwrap()
-    }
-}
-
-impl TryInto<WorkDay> for &EditBufs {
-    type Error = String;
-
-    fn try_into(self) -> Result<WorkDay, Self::Error> {
-        Ok(WorkDay {
-            date: NaiveDate::parse_from_str(self.text(EditField::Date), "%Y-%m-%d")
-                .map_err(|err| format!("could not parse Date: {err}"))?,
-            day_type: if self.sick {
-                DayType::Sick
-            } else {
-                DayType::Present {
-                    start: NaiveTime::parse_from_str(self.text(EditField::Start), "%H:%M:%S")
-                        .map_err(|err| format!("could not parse Start: {err}"))?,
-                    end: NaiveTime::parse_from_str(self.text(EditField::End), "%H:%M:%S")
-                        .map_err(|err| format!("could not parse End: {err}"))?,
-                    break_start: NaiveTime::parse_from_str(
-                        self.text(EditField::BreakStart),
-                        "%H:%M:%S",
-                    )
-                    .map_err(|err| format!("could not parse Break Start: {err}"))?,
-                    break_end: NaiveTime::parse_from_str(
-                        self.text(EditField::BreakEnd),
-                        "%H:%M:%S",
-                    )
-                    .map_err(|err| format!("could not parse Break End {err}"))?,
-                }
-            },
-        })
-    }
-}
-
-impl std::ops::Index<EditField> for EditBufs {
-    type Output = [u8; 64];
-
-    fn index(&self, index: EditField) -> &Self::Output {
-        match index {
-            EditField::Date => &self.bufs[0],
-            EditField::Start => &self.bufs[1],
-            EditField::End => &self.bufs[2],
-            EditField::BreakStart => &self.bufs[3],
-            EditField::BreakEnd => &self.bufs[4],
-            EditField::Sick => unreachable!(),
-        }
-    }
-}
-
-impl std::ops::IndexMut<EditField> for EditBufs {
-    fn index_mut(&mut self, index: EditField) -> &mut Self::Output {
-        match index {
-            EditField::Date => &mut self.bufs[0],
-            EditField::Start => &mut self.bufs[1],
-            EditField::End => &mut self.bufs[2],
-            EditField::BreakStart => &mut self.bufs[3],
-            EditField::BreakEnd => &mut self.bufs[4],
-            EditField::Sick => unreachable!(),
-        }
-    }
-}
-
-enum EditMode {
-    Move,
-    Edit,
-}
 
 enum AppMode {
     ListOnly,
@@ -251,31 +52,56 @@ fn render_edit_window(frame: &mut Frame, pos: &Rect, state: &AppState) {
         use EditField::*;
         let field_index = match *field {
             Date => 0,
-            Sick => 1,
+            DayType => 1,
             Start => 2,
             End => 3,
             BreakStart => 4,
             BreakEnd => 5,
         };
 
-        let mut names = vec![ListItem::new("Date"), ListItem::new("Present")];
+        let mut names = vec![ListItem::new("Date"), ListItem::new("Status")];
         let mut bufs = vec![
             edit_bufs.text(Date),
-            if edit_bufs.sick { "No" } else { "Yes" },
+            match edit_bufs.day_type {
+                EditDayType::Present => "Present",
+                EditDayType::Sick => "Sick",
+                EditDayType::Unofficial { has_break } => {
+                    if has_break {
+                        "Unofficial (with break)"
+                    } else {
+                        "Unofficial (no break)"
+                    }
+                }
+            },
         ];
-        if !edit_bufs.sick {
-            names.extend_from_slice(&[
-                ListItem::new("Start"),
-                ListItem::new("End"),
-                ListItem::new("Break Start"),
-                ListItem::new("Break End"),
-            ]);
-            bufs.extend_from_slice(&[
-                edit_bufs.text(Start),
-                edit_bufs.text(End),
-                edit_bufs.text(BreakStart),
-                edit_bufs.text(BreakEnd),
-            ]);
+
+        match edit_bufs.day_type {
+            EditDayType::Present => {
+                names.extend_from_slice(&[
+                    ListItem::new("Start"),
+                    ListItem::new("End"),
+                    ListItem::new("Break Start"),
+                    ListItem::new("Break End"),
+                ]);
+                bufs.extend_from_slice(&[
+                    edit_bufs.text(Start),
+                    edit_bufs.text(End),
+                    edit_bufs.text(BreakStart),
+                    edit_bufs.text(BreakEnd),
+                ]);
+            }
+            EditDayType::Sick => (),
+            EditDayType::Unofficial { has_break } => {
+                names.extend_from_slice(&[ListItem::new("Start"), ListItem::new("End")]);
+                bufs.extend_from_slice(&[edit_bufs.text(Start), edit_bufs.text(End)]);
+                if has_break {
+                    bufs.extend_from_slice(&[edit_bufs.text(BreakStart), edit_bufs.text(BreakEnd)]);
+                    names.extend_from_slice(&[
+                        ListItem::new("Break Start"),
+                        ListItem::new("Break End"),
+                    ]);
+                }
+            }
         }
 
         let bufs = bufs
@@ -349,8 +175,8 @@ fn handle_events_edit(state: &mut AppState) -> Result<bool, ()> {
             match e_mode {
                 EditMode::Move => match key.code {
                     KeyCode::Char('q') => return Ok(true),
-                    KeyCode::Char('j') => *field = field.next(edit_bufs.sick),
-                    KeyCode::Char('k') => *field = field.prev(edit_bufs.sick),
+                    KeyCode::Char('j') => *field = field.next(edit_bufs.day_type),
+                    KeyCode::Char('k') => *field = field.prev(edit_bufs.day_type),
                     KeyCode::Char('s') => {
                         // TODO: error messages
                         match (&*edit_bufs).try_into() {
@@ -364,8 +190,8 @@ fn handle_events_edit(state: &mut AppState) -> Result<bool, ()> {
                     }
                     KeyCode::Esc | KeyCode::Char('h') => state.mode = AppMode::ListOnly,
                     KeyCode::Enter | KeyCode::Char('l') => {
-                        if *field == EditField::Sick {
-                            edit_bufs.sick = !edit_bufs.sick;
+                        if *field == EditField::DayType {
+                            edit_bufs.day_type = edit_bufs.day_type.next();
                         } else {
                             *e_mode = EditMode::Edit;
                         }
@@ -377,7 +203,7 @@ fn handle_events_edit(state: &mut AppState) -> Result<bool, ()> {
                         *e_mode = EditMode::Move;
                     }
                     KeyCode::Char(c) => {
-                        assert_ne!(*field, EditField::Sick);
+                        assert_ne!(*field, EditField::DayType);
                         if c.is_ascii() {
                             let (buf, cur) = edit_bufs.entry_mut(*field);
                             if *cur < 64 {
@@ -387,7 +213,7 @@ fn handle_events_edit(state: &mut AppState) -> Result<bool, ()> {
                         }
                     }
                     KeyCode::Backspace => {
-                        assert_ne!(*field, EditField::Sick);
+                        assert_ne!(*field, EditField::DayType);
                         let (_, cur) = edit_bufs.entry_mut(*field);
                         if *cur > 0 {
                             *cur -= 1;
@@ -448,7 +274,7 @@ fn handle_events_listonly(state: &mut AppState) -> Result<bool, ()> {
                 KeyCode::Char('l') | KeyCode::Enter => {
                     state.mode = AppMode::Edit {
                         mode: EditMode::Move,
-                        edit_bufs: EditBufs::from_day(&state.days[state.selected]),
+                        edit_bufs: EditBufs::from(&state.days[state.selected]),
                         field: EditField::Date,
                         index: state.selected,
                     }
