@@ -191,7 +191,7 @@ fn render_list(frame: &mut Frame, pos: &Rect, state: &AppState, active: bool) {
                     Style::default().fg(Color::Gray)
                 }),
         )
-        .highlight_symbol(">>")
+        .highlight_symbol("> ")
         .highlight_style(Style::default().fg(MOVE_CLR).bold()),
         *pos,
         &mut ListState::default().with_selected(state.selected),
