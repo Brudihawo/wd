@@ -21,7 +21,7 @@ fn load_days(file_path: &str) -> Result<Vec<WorkDay>, ()> {
 }
 
 fn init_terminal() -> Result<Terminal<CrosstermBackend<Stdout>>, ()> {
-    let mut terminal = Terminal::new(CrosstermBackend::new(stdout())).map_err(|err| {
+    let terminal = Terminal::new(CrosstermBackend::new(stdout())).map_err(|err| {
         eprintln!("Could not create terminal: {err}");
     })?;
     enable_raw_mode().map_err(|err| {
