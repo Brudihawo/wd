@@ -1,14 +1,16 @@
-use clap::{Parser, Subcommand};
-use serde_json;
 use std::io::{stdout, Stdout};
 
-use crossterm::{
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
-    ExecutableCommand,
+use clap::{Parser, Subcommand};
+use serde_json;
+
+use crossterm::terminal::{
+    disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
 };
+use crossterm::ExecutableCommand;
 use ratatui::prelude::{CrosstermBackend, Terminal};
 
-use wd::app::{events::handle_events, render::render_application, AppMode, AppState, Message};
+use wd::app::{events::handle_events, render::render_application};
+use wd::app::{AppMode, AppState, Message};
 use wd::disp_utils::print_stat;
 use wd::work_day::WorkDay;
 
