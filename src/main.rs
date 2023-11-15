@@ -2,8 +2,6 @@ use std::io::stdout;
 
 use serde_json;
 
-use chrono::{NaiveDate, NaiveTime};
-
 use crossterm::{
     event::{self, Event, KeyCode},
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
@@ -301,6 +299,24 @@ fn handle_events(state: &mut AppState) -> Result<bool, ()> {
     Ok(false)
 }
 
+fn render_message_area(frame: &mut Frame, area: &Rect, message: &Message) {
+    match &message {
+        Message::Info(msg) => frame.render_widget(
+            Block::default()
+                .title(msg.clone())
+                .style(Style::default().fg(Color::LightBlue).bold()),
+            *area,
+        ),
+        Message::Error(msg) => frame.render_widget(
+            Block::default()
+                .title(msg.clone())
+                .style(Style::default().fg(Color::LightYellow).bold()),
+            *area,
+        ),
+        Message::None => (),
+    }
+}
+
 fn ui(frame: &mut Frame, state: &AppState) {
     let list_size = 0.5;
     let mut list_area = frame.size();
@@ -322,23 +338,9 @@ fn ui(frame: &mut Frame, state: &AppState) {
         render_edit_window(frame, &edit_area, state);
         list_active = false;
     }
-    render_list(frame, &list_area, state, list_active);
 
-    match &state.message {
-        Message::Info(msg) => frame.render_widget(
-            Block::default()
-                .title(msg.clone())
-                .style(Style::default().fg(Color::LightBlue).bold()),
-            msg_area,
-        ),
-        Message::Error(msg) => frame.render_widget(
-            Block::default()
-                .title(msg.clone())
-                .style(Style::default().fg(Color::LightYellow).bold()),
-            msg_area,
-        ),
-        Message::None => (),
-    }
+    render_list(frame, &list_area, state, list_active);
+    render_message_area(frame, &msg_area, &state.message);
 }
 
 fn load_days(file_path: &str) -> Result<Vec<WorkDay>, ()> {
