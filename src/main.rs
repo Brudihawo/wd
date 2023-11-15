@@ -1,4 +1,4 @@
-use chrono::{Duration, NaiveTime, NaiveWeek};
+use chrono::{Duration, NaiveTime};
 use clap::{Parser, Subcommand};
 use serde_json;
 use std::collections::HashMap;
@@ -238,6 +238,7 @@ fn main() -> Result<(), ()> {
                 file_path: args.file_path,
                 days,
                 mode: AppMode::ListOnly,
+                help_popup: None,
             };
             return tui_loop(state);
         }
@@ -251,6 +252,7 @@ fn main() -> Result<(), ()> {
                 file_path: args.file_path,
                 days: Vec::new(),
                 mode: AppMode::ListOnly,
+                help_popup: None,
             };
             return tui_loop(state);
         }

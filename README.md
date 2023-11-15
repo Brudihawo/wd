@@ -17,6 +17,6 @@ This is a work in progress. Currently, barely the most basic functionality exist
 - [ ] different databases - just json for now
 
 ### Minor / Code Quality
+- [x] add help screen when pressing ?
 - [ ] better encapsulation for editor code
-- [ ] sort days by date
-- [ ] add help screen when pressing ?
+- [x] sort days by date

@@ -319,5 +319,5 @@ impl std::ops::IndexMut<EditField> for EditBufs {
 
 pub enum EditMode {
     Move,
-    Edit,
+    Insert,
 }

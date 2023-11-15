@@ -12,3 +12,4 @@ crossterm = "0.27.0"
 ratatui = "0.24.0"
 serde = { version = "1.0.192", features = ["derive"] }
 serde_json = "1.0.108"
+static_assertions = "1.1.0"

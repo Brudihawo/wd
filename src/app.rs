@@ -1,7 +1,7 @@
 use crate::editor::{EditBufs, EditDayType, EditField, EditMode};
 use crate::work_day::{Break, DayType, WorkDay};
 
-use crossterm::event::{self, Event, KeyCode};
+use crossterm::event::{self, Event, KeyCode, KeyModifiers};
 use ratatui::{
     prelude::{Color, Frame, Rect, Style, Stylize},
     widgets::{Block, Borders, Clear, List, ListItem, ListState},
@@ -10,6 +10,12 @@ use ratatui::{
 use chrono::{Local, NaiveTime};
 
 pub const ORANGE: Color = Color::Rgb(255, 140, 0);
+
+pub const EDIT_MOVE_CLR: Color = Color::LightCyan;
+pub const EDIT_INS_CLR: Color = Color::LightYellow;
+pub const MOVE_CLR: Color = ORANGE;
+pub const HELP_CLR: Color = Color::LightGreen;
+const SCROLL_AMT: usize = 5;
 
 pub enum AppMode {
     ListOnly,
@@ -33,6 +39,7 @@ pub struct AppState {
     pub selected: Option<usize>,
     pub mode: AppMode,
     pub message: Message,
+    pub help_popup: Option<usize>,
 }
 
 impl AppState {
@@ -85,13 +92,48 @@ impl AppState {
     }
 }
 
+pub fn handle_events_help(state: &mut AppState) -> Result<bool, ()> {
+    if let Event::Key(key) = event::read().map_err(|err| {
+        eprintln!("Could not read event: {err}");
+    })? {
+        if key.kind == event::KeyEventKind::Press {
+            match key.code {
+                KeyCode::Char('q') | KeyCode::Char('x') => return Ok(true),
+                KeyCode::Char('?') | KeyCode::Esc => state.help_popup = None,
+                KeyCode::Char('j') => state.help_popup = Some(state.help_popup.unwrap() + 1),
+                KeyCode::Char('k') => {
+                    if state.help_popup.unwrap() > 0 {
+                        state.help_popup = Some(state.help_popup.unwrap() - 1);
+                    }
+                }
+                KeyCode::Char('d') if key.modifiers == KeyModifiers::CONTROL => {
+                    state.help_popup = Some(state.help_popup.unwrap() + 5);
+                }
+                KeyCode::Char('u') if key.modifiers == KeyModifiers::CONTROL => {
+                    if state.help_popup.unwrap() > 5 {
+                        state.help_popup = Some(state.help_popup.unwrap() - 5);
+                    } else {
+                        state.help_popup = Some(0);
+                    }
+                }
+                _ => (),
+            }
+        }
+    }
+    return Ok(false);
+}
+
 pub fn handle_events(state: &mut AppState) -> Result<bool, ()> {
     if event::poll(std::time::Duration::from_millis(50)).map_err(|err| {
         eprintln!("could not poll events: {err}");
     })? {
-        match &state.mode {
-            AppMode::ListOnly => return handle_events_listonly(state),
-            AppMode::Edit { .. } => return handle_events_edit(state),
+        if state.help_popup.is_some() {
+            return handle_events_help(state);
+        } else {
+            match &state.mode {
+                AppMode::ListOnly => return handle_events_listonly(state),
+                AppMode::Edit { .. } => return handle_events_edit(state),
+            }
         }
     }
 
@@ -104,11 +146,22 @@ fn handle_events_listonly(state: &mut AppState) -> Result<bool, ()> {
     })? {
         if key.kind == event::KeyEventKind::Press {
             match key.code {
+                KeyCode::Char('?') => state.help_popup = Some(0),
                 KeyCode::Char('q') => return Ok(true),
                 KeyCode::Char('w') => state.write()?,
                 KeyCode::Char('x') => {
                     state.write()?;
                     return Ok(true);
+                }
+                KeyCode::Char('d') if key.modifiers == KeyModifiers::CONTROL => {
+                    for _ in 0..5 {
+                        state.selected = state.next_day();
+                    }
+                }
+                KeyCode::Char('u') if key.modifiers == KeyModifiers::CONTROL => {
+                    for _ in 0..5 {
+                        state.selected = state.prev_day();
+                    }
                 }
                 KeyCode::Char('d') => {
                     if let Some(selected) = state.selected.as_mut() {
@@ -167,7 +220,7 @@ fn handle_events_edit(state: &mut AppState) -> Result<bool, ()> {
         if key.kind == event::KeyEventKind::Press {
             let next = state.next_day();
             let prev = state.prev_day();
-            let (edit_bufs, field, e_mode, index) = match &mut state.mode {
+            let (edit_bufs, field, e_mode, _index) = match &mut state.mode {
                 AppMode::ListOnly => unreachable!(),
                 AppMode::Edit {
                     edit_bufs,
@@ -184,6 +237,7 @@ fn handle_events_edit(state: &mut AppState) -> Result<bool, ()> {
 
             match e_mode {
                 EditMode::Move => match key.code {
+                    KeyCode::Char('?') => state.help_popup = Some(0),
                     KeyCode::Char('q') => return Ok(true),
                     KeyCode::Char('w') => state.write()?,
                     KeyCode::Char('s') => match (&*edit_bufs).try_into() {
@@ -224,12 +278,12 @@ fn handle_events_edit(state: &mut AppState) -> Result<bool, ()> {
                         if *field == EditField::DayType {
                             edit_bufs.day_type = edit_bufs.day_type.next();
                         } else {
-                            *e_mode = EditMode::Edit;
+                            *e_mode = EditMode::Insert;
                         }
                     }
                     _ => (),
                 },
-                EditMode::Edit => match key.code {
+                EditMode::Insert => match key.code {
                     KeyCode::Esc | KeyCode::Enter => {
                         *e_mode = EditMode::Move;
                     }
@@ -260,6 +314,9 @@ fn handle_events_edit(state: &mut AppState) -> Result<bool, ()> {
 }
 
 pub mod render {
+    use ratatui::widgets::{Scrollbar, ScrollbarOrientation, ScrollbarState};
+    use static_assertions::const_assert_eq;
+
     use super::*;
 
     fn render_edit_window(frame: &mut Frame, pos: &Rect, state: &AppState) {
@@ -364,16 +421,16 @@ pub mod render {
 
             frame.render_stateful_widget(
                 List::new(names).highlight_style(Style::default().bold().fg(match e_mode {
-                    EditMode::Move => ORANGE,
-                    EditMode::Edit => Color::LightBlue,
+                    EditMode::Move => EDIT_MOVE_CLR,
+                    EditMode::Insert => EDIT_INS_CLR,
                 })),
                 name_area,
                 &mut ListState::default().with_selected(Some(field_index)),
             );
             frame.render_stateful_widget(
                 List::new(bufs).highlight_style(Style::default().bold().fg(match e_mode {
-                    EditMode::Move => ORANGE,
-                    EditMode::Edit => Color::LightBlue,
+                    EditMode::Move => EDIT_MOVE_CLR,
+                    EditMode::Insert => EDIT_INS_CLR,
                 })),
                 buf_area,
                 &mut ListState::default().with_selected(Some(field_index)),
@@ -397,13 +454,13 @@ pub mod render {
                     .title("Work Days")
                     .borders(Borders::ALL)
                     .border_style(if active {
-                        Style::default().fg(ORANGE)
+                        Style::default().fg(MOVE_CLR)
                     } else {
                         Style::default().fg(Color::Gray)
                     }),
             )
             .highlight_symbol(">>")
-            .highlight_style(Style::default().fg(ORANGE).bold()),
+            .highlight_style(Style::default().fg(MOVE_CLR).bold()),
             *pos,
             &mut ListState::default().with_selected(state.selected),
         );
@@ -425,6 +482,118 @@ pub mod render {
             ),
             Message::None => (),
         }
+    }
+
+    pub fn render_help_popup(frame: &mut Frame, area: &Rect, state: &AppState) {
+        frame.render_widget(Clear, *area);
+        frame.render_widget(
+            Block::default()
+                .title("Help")
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(HELP_CLR).bold()),
+            *area,
+        );
+
+        let mut list_mode_area = *area;
+        list_mode_area.x += 1;
+        list_mode_area.y += 1;
+        list_mode_area.width -= 2;
+        list_mode_area.height = 9;
+
+        let mut edit_mode_move_area = list_mode_area;
+        edit_mode_move_area.y += list_mode_area.height + 1;
+        edit_mode_move_area.height = 11;
+
+        let list_text = [
+            "            ?  open help",
+            "            q  quit",
+            "            w  write to disk",
+            "            x  write to disk and quit",
+            "            d  delete current selection",
+            "          j/k  scroll down/up",
+            "      <c-u/d>  scroll down/up by 5",
+            "    l/<enter>  enter edit mode - move on selection",
+            "            +  add new entry",
+        ]
+        .as_slice();
+
+        let edit_move_text = [
+            "            ?  open help",
+            "            q  quit",
+            "            w  write to disk",
+            "            s  save current entry",
+            "            x  write and quit",
+            "        <tab>  next entry",
+            "      <s-tab>  previous entry",
+            "          j/k  field below/above",
+            "      <esc>/h  go back to list mode",
+            "    <enter>/l  edit current field (edit mode - insert)",
+        ]
+        .as_slice();
+
+        let edit_insert_text = [
+            "<enter>/<esc>  finish editing field (edit mode - move)",
+            "any character  type in current field",
+            "      <bcksp>  delete a character",
+        ]
+        .as_slice();
+
+        const_assert_eq!(SCROLL_AMT, 5);
+        // Update Help Text if SCROLL_AMT has changed
+        let help_text = [
+            "          q/x  quit",
+            "      ?/<esc>  close help popup",
+            "          j/k  scroll down/up",
+            "      <c-u/d>  scroll down/up by 5",
+        ]
+        .as_slice();
+
+        let help_segments = [
+            (list_text, MOVE_CLR, "Move Mode"),
+            (edit_move_text, EDIT_MOVE_CLR, "Edit Mode - Move"),
+            (edit_insert_text, EDIT_INS_CLR, "Edit Mode - Insert"),
+            (help_text, HELP_CLR, "Help Popup"),
+        ];
+
+        let mut lines = Vec::new();
+        for (text, color, title) in help_segments {
+            lines.push(ListItem::new(title).bold().fg(color));
+            lines.extend(text.iter().map(|l| ListItem::new(*l).fg(color)));
+            lines.push(ListItem::new("").bold().fg(color));
+        }
+        lines.extend((0..SCROLL_AMT - 1).map(|_| ListItem::new("")));
+
+        let inner = Rect {
+            x: area.x + 2,
+            y: area.y + 1,
+            width: area.width - 5,
+            height: area.height - 2,
+        };
+
+        let scrollbar_area = Rect {
+            x: inner.x + inner.width,
+            y: inner.y,
+            width: 1,
+            height: inner.height,
+        };
+
+        let num_lines = lines.len();
+        let pos = state.help_popup.unwrap() % num_lines;
+
+        frame.render_stateful_widget(
+            List::new(lines)
+                .highlight_style(Style::default().bold().fg(Color::White))
+                .highlight_symbol("> ")
+            ,
+            inner,
+            &mut ListState::default().with_selected(Some(pos)),
+        );
+
+        frame.render_stateful_widget(
+            Scrollbar::default().orientation(ScrollbarOrientation::VerticalRight),
+            scrollbar_area,
+            &mut ScrollbarState::new(num_lines).position(pos),
+        );
     }
 
     pub fn ui(frame: &mut Frame, state: &AppState) {
@@ -451,5 +620,16 @@ pub mod render {
 
         render_list(frame, &list_area, state, list_active);
         render_message_area(frame, &msg_area, &state.message);
+
+        if state.help_popup.is_some() {
+            let help_inset = 8;
+            let mut popup_area = frame.size();
+            popup_area.x += help_inset;
+            popup_area.y += help_inset;
+            popup_area.width -= help_inset * 2;
+            popup_area.height -= help_inset * 2;
+
+            render_help_popup(frame, &popup_area, &state);
+        }
     }
 }
