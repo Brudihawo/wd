@@ -6,7 +6,27 @@ use crate::editor::{EditBufs, EditField, EditMode};
 use crate::stat::{total_stats, weekly_stats};
 use crate::work_day::{DayType, WorkDay, Break};
 
-pub fn handle_events_help(state: &mut AppState) -> Result<bool, ()> {
+pub fn handle_events(state: &mut AppState) -> Result<bool, ()> {
+    if event::poll(std::time::Duration::from_millis(50)).map_err(|err| {
+        eprintln!("could not poll events: {err}");
+    })? {
+        if state.help_popup.is_some() {
+            return handle_events_help(state);
+        } else if state.statistics.is_some() {
+            return handle_events_stats(state);
+        } else {
+            match &state.mode {
+                AppMode::ListOnly => return handle_events_listonly(state),
+                AppMode::Edit { .. } => return handle_events_edit(state),
+            }
+        }
+    }
+
+    Ok(false)
+}
+
+
+fn handle_events_help(state: &mut AppState) -> Result<bool, ()> {
     if let Event::Key(key) = event::read().map_err(|err| {
         eprintln!("Could not read event: {err}");
     })? {
@@ -91,25 +111,6 @@ pub fn handle_events_stats(state: &mut AppState) -> Result<bool, ()> {
                         .next();
                 }
                 _ => (),
-            }
-        }
-    }
-
-    Ok(false)
-}
-
-pub fn handle_events(state: &mut AppState) -> Result<bool, ()> {
-    if event::poll(std::time::Duration::from_millis(50)).map_err(|err| {
-        eprintln!("could not poll events: {err}");
-    })? {
-        if state.help_popup.is_some() {
-            return handle_events_help(state);
-        } else if state.statistics.is_some() {
-            return handle_events_stats(state);
-        } else {
-            match &state.mode {
-                AppMode::ListOnly => return handle_events_listonly(state),
-                AppMode::Edit { .. } => return handle_events_edit(state),
             }
         }
     }

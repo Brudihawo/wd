@@ -6,6 +6,54 @@ use crate::app_common::Message;
 
 use super::*;
 
+pub fn render_application(frame: &mut Frame, state: &AppState) {
+    let list_size = 0.5;
+    let mut list_area = frame.size();
+    list_area.height = (list_area.height as f32 * list_size) as u16;
+    let edit_area = Rect {
+        x: list_area.x,
+        y: list_area.y + list_area.height,
+        width: list_area.width,
+        height: frame.size().height - list_area.height - 1,
+    };
+    let mut msg_area = frame.size();
+    msg_area.y += msg_area.height - 1;
+    msg_area.height = 1;
+
+    frame.render_widget(Clear, frame.size());
+
+    let mut list_active = true;
+    if let AppMode::Edit { .. } = &state.mode {
+        render_edit_window(frame, &edit_area, state);
+        list_active = false;
+    }
+
+    render_list(frame, &list_area, state, list_active);
+    render_message_area(frame, &msg_area, &state.message);
+
+    if state.statistics.is_some() {
+        let stat_inset = 8;
+        let mut popup_area = frame.size();
+        popup_area.x += stat_inset;
+        popup_area.y += stat_inset;
+        popup_area.width -= stat_inset * 2;
+        popup_area.height -= stat_inset * 2;
+
+        render_statistics_popup(frame, &popup_area, state.statistics.as_ref().unwrap());
+    }
+
+    if state.help_popup.is_some() {
+        let help_inset = 8;
+        let mut popup_area = frame.size();
+        popup_area.x += help_inset;
+        popup_area.y += help_inset;
+        popup_area.width -= help_inset * 2;
+        popup_area.height -= help_inset * 2;
+
+        render_help_popup(frame, &popup_area, &state);
+    }
+}
+
 fn render_edit_window(frame: &mut Frame, pos: &Rect, state: &AppState) {
     if let AppMode::Edit {
         field,
@@ -419,51 +467,4 @@ fn render_statistics_popup(frame: &mut Frame, area: &Rect, stats: &StatsState) {
     );
 }
 
-pub fn render_application(frame: &mut Frame, state: &AppState) {
-    let list_size = 0.5;
-    let mut list_area = frame.size();
-    list_area.height = (list_area.height as f32 * list_size) as u16;
-    let edit_area = Rect {
-        x: list_area.x,
-        y: list_area.y + list_area.height,
-        width: list_area.width,
-        height: frame.size().height - list_area.height - 1,
-    };
-    let mut msg_area = frame.size();
-    msg_area.y += msg_area.height - 1;
-    msg_area.height = 1;
-
-    frame.render_widget(Clear, frame.size());
-
-    let mut list_active = true;
-    if let AppMode::Edit { .. } = &state.mode {
-        render_edit_window(frame, &edit_area, state);
-        list_active = false;
-    }
-
-    render_list(frame, &list_area, state, list_active);
-    render_message_area(frame, &msg_area, &state.message);
-
-    if state.statistics.is_some() {
-        let stat_inset = 8;
-        let mut popup_area = frame.size();
-        popup_area.x += stat_inset;
-        popup_area.y += stat_inset;
-        popup_area.width -= stat_inset * 2;
-        popup_area.height -= stat_inset * 2;
-
-        render_statistics_popup(frame, &popup_area, state.statistics.as_ref().unwrap());
-    }
-
-    if state.help_popup.is_some() {
-        let help_inset = 8;
-        let mut popup_area = frame.size();
-        popup_area.x += help_inset;
-        popup_area.y += help_inset;
-        popup_area.width -= help_inset * 2;
-        popup_area.height -= help_inset * 2;
-
-        render_help_popup(frame, &popup_area, &state);
-    }
-}
 
