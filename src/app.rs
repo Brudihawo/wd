@@ -81,6 +81,7 @@ fn handle_events_listonly(state: &mut AppState) -> Result<bool, ()> {
         if key.kind == event::KeyEventKind::Press {
             match key.code {
                 KeyCode::Char('q') => return Ok(true),
+                KeyCode::Char('w') => state.write()?,
                 KeyCode::Char('d') | KeyCode::Char('x') => {
                     let removed = state.days.remove(state.selected);
                     if state.selected == state.days.len() {
@@ -152,9 +153,7 @@ fn handle_events_edit(state: &mut AppState) -> Result<bool, ()> {
             match e_mode {
                 EditMode::Move => match key.code {
                     KeyCode::Char('q') => return Ok(true),
-                    KeyCode::Char('w') => {
-                        state.write()?;
-                    }
+                    KeyCode::Char('w') => state.write()?,
                     KeyCode::Char('j') => *field = field.next(edit_bufs.day_type),
                     KeyCode::Char('k') => *field = field.prev(edit_bufs.day_type),
                     KeyCode::Char('s') => {
