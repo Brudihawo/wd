@@ -1,3 +1,41 @@
+use chrono::{Local, NaiveTime};
+use crossterm::event::{self, Event, KeyCode, KeyModifiers};
+
+use crate::app_common::{AppMode, AppState, Message, StatsState};
+use crate::editor::{EditBufs, EditField, EditMode};
+use crate::stat::{total_stats, weekly_stats};
+use crate::work_day::{DayType, WorkDay, Break};
+
+pub fn handle_events_help(state: &mut AppState) -> Result<bool, ()> {
+    if let Event::Key(key) = event::read().map_err(|err| {
+        eprintln!("Could not read event: {err}");
+    })? {
+        if key.kind == event::KeyEventKind::Press {
+            match key.code {
+                KeyCode::Char('q') | KeyCode::Char('x') => return Ok(true),
+                KeyCode::Char('?') | KeyCode::Esc => state.help_popup = None,
+                KeyCode::Char('j') => state.help_popup = Some(state.help_popup.unwrap() + 1),
+                KeyCode::Char('k') => {
+                    if state.help_popup.unwrap() > 0 {
+                        state.help_popup = Some(state.help_popup.unwrap() - 1);
+                    }
+                }
+                KeyCode::Char('d') if key.modifiers == KeyModifiers::CONTROL => {
+                    state.help_popup = Some(state.help_popup.unwrap() + 5);
+                }
+                KeyCode::Char('u') if key.modifiers == KeyModifiers::CONTROL => {
+                    if state.help_popup.unwrap() > 5 {
+                        state.help_popup = Some(state.help_popup.unwrap() - 5);
+                    } else {
+                        state.help_popup = Some(0);
+                    }
+                }
+                _ => (),
+            }
+        }
+    }
+    Ok(false)
+}
 
 pub fn handle_events_stats(state: &mut AppState) -> Result<bool, ()> {
     if let Event::Key(key) = event::read().map_err(|err| {
@@ -264,4 +302,3 @@ fn handle_events_edit(state: &mut AppState) -> Result<bool, ()> {
 
     Ok(false)
 }
-

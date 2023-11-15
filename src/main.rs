@@ -8,7 +8,7 @@ use crossterm::{
 };
 use ratatui::prelude::{CrosstermBackend, Terminal};
 
-use wd::app::{handle_events, render::render_application, AppMode, AppState, Message, ORANGE};
+use wd::app::{events::handle_events, render::render_application, AppMode, AppState, Message};
 use wd::disp_utils::print_stat;
 use wd::work_day::WorkDay;
 
