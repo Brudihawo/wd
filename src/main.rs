@@ -1,5 +1,6 @@
 use std::io::stdout;
 
+use chrono::{Local, NaiveTime};
 use serde_json;
 
 use crossterm::{
@@ -9,8 +10,11 @@ use crossterm::{
 };
 use ratatui::{prelude::*, widgets::*};
 
-use wd::editor::{EditBufs, EditDayType, EditField, EditMode};
-use wd::work_day::WorkDay;
+use wd::work_day::{DayType, WorkDay};
+use wd::{
+    editor::{EditBufs, EditDayType, EditField, EditMode},
+    work_day::Break,
+};
 
 const ORANGE: Color = Color::Rgb(255, 140, 0);
 
@@ -277,7 +281,26 @@ fn handle_events_listonly(state: &mut AppState) -> Result<bool, ()> {
                         index: state.selected,
                     }
                 }
-                KeyCode::Char('+') => {}
+                KeyCode::Char('+') => {
+                    state.selected = state.days.len();
+                    state.days.push(WorkDay {
+                        date: Local::now().naive_local().date(),
+                        day_type: DayType::Present {
+                            start: NaiveTime::from_hms_opt(8, 0, 0).unwrap(),
+                            end: NaiveTime::from_hms_opt(16, 30, 0).unwrap(),
+                            brk: Break {
+                                break_start: NaiveTime::from_hms_opt(11, 30, 0).unwrap(),
+                                break_end: NaiveTime::from_hms_opt(12, 00, 0).unwrap(),
+                            },
+                        },
+                    });
+                    state.mode = AppMode::Edit {
+                        mode: EditMode::Move,
+                        edit_bufs: EditBufs::from(&state.days[state.selected]),
+                        field: EditField::Date,
+                        index: state.selected,
+                    }
+                }
                 _ => (),
             }
         }
