@@ -34,7 +34,20 @@ pub struct AppState {
     pub message: Message,
 }
 
-pub fn handle_events_listonly(state: &mut AppState) -> Result<bool, ()> {
+pub fn handle_events(state: &mut AppState) -> Result<bool, ()> {
+    if event::poll(std::time::Duration::from_millis(50)).map_err(|err| {
+        eprintln!("could not poll events: {err}");
+    })? {
+        match &state.mode {
+            AppMode::ListOnly => return handle_events_listonly(state),
+            AppMode::Edit { .. } => return handle_events_edit(state),
+        }
+    }
+
+    Ok(false)
+}
+
+fn handle_events_listonly(state: &mut AppState) -> Result<bool, ()> {
     if let Event::Key(key) = event::read().map_err(|err| {
         eprintln!("Could not read event: {err}");
     })? {
@@ -87,7 +100,7 @@ pub fn handle_events_listonly(state: &mut AppState) -> Result<bool, ()> {
     Ok(false)
 }
 
-pub fn handle_events_edit(state: &mut AppState) -> Result<bool, ()> {
+fn handle_events_edit(state: &mut AppState) -> Result<bool, ()> {
     if let Event::Key(key) = event::read().map_err(|err| {
         eprintln!("Could not read event: {err}");
     })? {
@@ -102,7 +115,6 @@ pub fn handle_events_edit(state: &mut AppState) -> Result<bool, ()> {
                 } => (edit_bufs, field, mode, index),
             };
 
-            const ORANGE: Color = Color::Rgb(255, 140, 0);
             match e_mode {
                 EditMode::Move => match key.code {
                     KeyCode::Char('q') => return Ok(true),
