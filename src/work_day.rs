@@ -1,10 +1,12 @@
-use chrono::{NaiveDate, NaiveTime};
+use chrono::{Duration, NaiveDate, NaiveTime};
 use serde::{self, Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Break {
-    pub break_start: NaiveTime,
-    pub break_end: NaiveTime,
+    #[serde(rename = "break_start")]
+    pub start: NaiveTime,
+    #[serde(rename = "break_end")]
+    pub end: NaiveTime,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -57,6 +59,19 @@ impl WorkDay {
             }
             DayType::Sick => {
                 format!("{date} -> Sick", date = self.date)
+            }
+        }
+    }
+
+    pub fn worked_time(&self) -> Duration {
+        match &self.day_type {
+            DayType::Present { start, end, brk } => *end - *start - (brk.end - brk.start),
+            DayType::Sick => Duration::zero(),
+            DayType::Unofficial { start, end, brk } => {
+                *end - *start
+                    - brk
+                        .as_ref()
+                        .map_or(Duration::zero(), |brk| brk.end - brk.start)
             }
         }
     }

@@ -13,6 +13,7 @@ This is a work in progress. Currently, barely the most basic functionality exist
 - [x] arg-parsing and default arguments
 - [x] write back to file
 - [ ] statistics
+- [ ] weekly / monthly view
 - [ ] different databases - just json for now
 
 ### Minor / Code Quality

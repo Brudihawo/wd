@@ -9,7 +9,7 @@ use ratatui::{
 
 use chrono::{Local, NaiveTime};
 
-const ORANGE: Color = Color::Rgb(255, 140, 0);
+pub const ORANGE: Color = Color::Rgb(255, 140, 0);
 
 pub enum AppMode {
     ListOnly,
@@ -30,7 +30,7 @@ pub enum Message {
 pub struct AppState {
     pub file_path: String,
     pub days: Vec<WorkDay>,
-    pub selected: usize,
+    pub selected: Option<usize>,
     pub mode: AppMode,
     pub message: Message,
 }
@@ -60,15 +60,27 @@ impl AppState {
         Ok(())
     }
 
-    pub fn next_day(&mut self) {
-        if self.selected < self.days.len() - 1 {
-            self.selected += 1;
+    pub fn next_day(&mut self) -> Option<usize> {
+        if let Some(selected) = self.selected {
+            if selected < self.days.len() - 1 {
+                Some(selected + 1)
+            } else {
+                Some(selected)
+            }
+        } else {
+            None
         }
     }
 
-    pub fn prev_day(&mut self) {
-        if self.selected >= 1 {
-            self.selected -= 1;
+    pub fn prev_day(&self) -> Option<usize> {
+        if let Some(selected) = self.selected {
+            if selected > 0 {
+                Some(selected - 1)
+            } else {
+                Some(selected)
+            }
+        } else {
+            None
         }
     }
 }
@@ -99,40 +111,45 @@ fn handle_events_listonly(state: &mut AppState) -> Result<bool, ()> {
                     return Ok(true);
                 }
                 KeyCode::Char('d') => {
-                    let removed = state.days.remove(state.selected);
-                    if state.selected == state.days.len() {
-                        state.selected = state.days.len() - 1;
+                    if let Some(selected) = state.selected.as_mut() {
+                        let removed = state.days.remove(*selected);
+                        if *selected == state.days.len() {
+                            *selected = state.days.len() - 1;
+                        }
+                        state.message = Message::Info(format!("Removed entry of {}", removed.date))
                     }
-                    state.message = Message::Info(format!("Removed entry of {}", removed.date))
                 }
-                KeyCode::Char('j') => state.next_day(),
-                KeyCode::Char('k') => state.prev_day(),
+                KeyCode::Char('j') => state.selected = state.next_day(),
+                KeyCode::Char('k') => state.selected = state.prev_day(),
                 KeyCode::Char('l') | KeyCode::Enter => {
-                    state.mode = AppMode::Edit {
-                        mode: EditMode::Move,
-                        edit_bufs: EditBufs::from(&state.days[state.selected]),
-                        field: EditField::Date,
-                        index: state.selected,
+                    if let Some(selected) = state.selected {
+                        state.mode = AppMode::Edit {
+                            mode: EditMode::Move,
+                            edit_bufs: EditBufs::from(&state.days[selected]),
+                            field: EditField::Date,
+                            index: selected,
+                        }
                     }
                 }
                 KeyCode::Char('+') => {
-                    state.selected = state.days.len();
                     state.days.push(WorkDay {
                         date: Local::now().naive_local().date(),
                         day_type: DayType::Present {
                             start: NaiveTime::from_hms_opt(8, 0, 0).unwrap(),
                             end: NaiveTime::from_hms_opt(16, 30, 0).unwrap(),
                             brk: Break {
-                                break_start: NaiveTime::from_hms_opt(11, 30, 0).unwrap(),
-                                break_end: NaiveTime::from_hms_opt(12, 00, 0).unwrap(),
+                                start: NaiveTime::from_hms_opt(11, 30, 0).unwrap(),
+                                end: NaiveTime::from_hms_opt(12, 00, 0).unwrap(),
                             },
                         },
                     });
+                    let selected = state.days.len() - 1;
+                    state.selected = Some(selected);
                     state.mode = AppMode::Edit {
                         mode: EditMode::Move,
-                        edit_bufs: EditBufs::from(&state.days[state.selected]),
+                        edit_bufs: EditBufs::from(&state.days[selected]),
                         field: EditField::Date,
-                        index: state.selected,
+                        index: selected,
                     }
                 }
                 _ => (),
@@ -148,6 +165,8 @@ fn handle_events_edit(state: &mut AppState) -> Result<bool, ()> {
         eprintln!("Could not read event: {err}");
     })? {
         if key.kind == event::KeyEventKind::Press {
+            let next = state.next_day();
+            let prev = state.prev_day();
             let (edit_bufs, field, e_mode, index) = match &mut state.mode {
                 AppMode::ListOnly => unreachable!(),
                 AppMode::Edit {
@@ -157,6 +176,11 @@ fn handle_events_edit(state: &mut AppState) -> Result<bool, ()> {
                     index,
                 } => (edit_bufs, field, mode, index),
             };
+            let selected = if let Some(selected) = state.selected.as_mut() {
+                selected
+            } else {
+                unreachable!()
+            };
 
             match e_mode {
                 EditMode::Move => match key.code {
@@ -164,7 +188,7 @@ fn handle_events_edit(state: &mut AppState) -> Result<bool, ()> {
                     KeyCode::Char('w') => state.write()?,
                     KeyCode::Char('s') => match (&*edit_bufs).try_into() {
                         Ok(val) => {
-                            state.days[*index] = val;
+                            state.days[*selected] = val;
                             state.message =
                                 Message::Info(String::from("WorkDay parsed successfully"));
                         }
@@ -175,21 +199,21 @@ fn handle_events_edit(state: &mut AppState) -> Result<bool, ()> {
                         return Ok(true);
                     }
                     KeyCode::Tab => {
-                        state.next_day();
+                        *selected = next.unwrap();
                         state.mode = AppMode::Edit {
                             mode: EditMode::Move,
-                            edit_bufs: EditBufs::from(&state.days[state.selected]),
+                            edit_bufs: EditBufs::from(&state.days[*selected]),
                             field: EditField::Date,
-                            index: state.selected,
+                            index: *selected,
                         }
                     }
                     KeyCode::BackTab => {
-                        state.prev_day();
+                        *selected = prev.unwrap();
                         state.mode = AppMode::Edit {
                             mode: EditMode::Move,
-                            edit_bufs: EditBufs::from(&state.days[state.selected]),
+                            edit_bufs: EditBufs::from(&state.days[*selected]),
                             field: EditField::Date,
-                            index: state.selected,
+                            index: *selected,
                         }
                     }
                     KeyCode::Char('j') => *field = field.next(edit_bufs.day_type),
@@ -380,7 +404,7 @@ pub mod render {
             .highlight_symbol(">>")
             .highlight_style(Style::default().fg(ORANGE).bold()),
             *pos,
-            &mut ListState::default().with_selected(Some(state.selected)),
+            &mut ListState::default().with_selected(state.selected),
         );
     }
 

@@ -178,8 +178,8 @@ impl From<&WorkDay> for EditBufs {
                 end,
                 brk:
                     Break {
-                        break_start,
-                        break_end,
+                        start: break_start,
+                        end: break_end,
                     },
             } => {
                 ret.cursors[E::Start as usize] = ret[E::Start]
@@ -219,12 +219,12 @@ impl From<&WorkDay> for EditBufs {
                 if let Some(b) = brk {
                     ret.cursors[E::BreakStart as usize] = ret[E::BreakStart]
                         .iter_mut()
-                        .zip(b.break_start.to_string().as_bytes())
+                        .zip(b.start.to_string().as_bytes())
                         .map(|(b, sb)| *b = *sb)
                         .count() as u8;
                     ret.cursors[E::BreakEnd as usize] = ret[E::BreakEnd]
                         .iter_mut()
-                        .zip(b.break_end.to_string().as_bytes())
+                        .zip(b.end.to_string().as_bytes())
                         .map(|(b, sb)| *b = *sb)
                         .count() as u8;
                 }
@@ -249,12 +249,12 @@ impl TryInto<WorkDay> for &EditBufs {
                     end: NaiveTime::parse_from_str(self.text(EditField::End), "%H:%M:%S")
                         .map_err(|err| format!("could not parse End: {err}"))?,
                     brk: Break {
-                        break_start: NaiveTime::parse_from_str(
+                        start: NaiveTime::parse_from_str(
                             self.text(EditField::BreakStart),
                             "%H:%M:%S",
                         )
                         .map_err(|err| format!("could not parse Break Start: {err}"))?,
-                        break_end: NaiveTime::parse_from_str(
+                        end: NaiveTime::parse_from_str(
                             self.text(EditField::BreakEnd),
                             "%H:%M:%S",
                         )
@@ -269,12 +269,12 @@ impl TryInto<WorkDay> for &EditBufs {
                         .map_err(|err| format!("could not parse End: {err}"))?,
                     brk: if has_break {
                         Some(Break {
-                            break_start: NaiveTime::parse_from_str(
+                            start: NaiveTime::parse_from_str(
                                 self.text(EditField::BreakStart),
                                 "%H:%M:%S",
                             )
                             .map_err(|err| format!("could not parse Break Start: {err}"))?,
-                            break_end: NaiveTime::parse_from_str(
+                            end: NaiveTime::parse_from_str(
                                 self.text(EditField::BreakEnd),
                                 "%H:%M:%S",
                             )
