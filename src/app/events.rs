@@ -4,7 +4,7 @@ use crossterm::event::{self, Event, KeyCode, KeyModifiers};
 use crate::app_common::{AppMode, AppState, Message, StatsState};
 use crate::editor::{EditBufs, EditField, EditMode};
 use crate::stat::{total_stats, weekly_stats};
-use crate::work_day::{DayType, WorkDay, Break};
+use crate::work_day::{Break, DayType, WorkDay};
 
 pub fn handle_events(state: &mut AppState) -> Result<bool, ()> {
     if event::poll(std::time::Duration::from_millis(50)).map_err(|err| {
@@ -24,7 +24,6 @@ pub fn handle_events(state: &mut AppState) -> Result<bool, ()> {
 
     Ok(false)
 }
-
 
 fn handle_events_help(state: &mut AppState) -> Result<bool, ()> {
     if let Event::Key(key) = event::read().map_err(|err| {
@@ -175,7 +174,7 @@ fn handle_events_listonly(state: &mut AppState) -> Result<bool, ()> {
                         }
                     }
                 }
-                KeyCode::Char('+') => {
+                KeyCode::Char('+') | KeyCode::Char('a') => {
                     state.days.push(WorkDay {
                         date: Local::now().naive_local().date(),
                         day_type: DayType::Present {

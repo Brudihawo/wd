@@ -110,10 +110,7 @@ fn render_edit_window(frame: &mut Frame, pos: &Rect, state: &AppState) {
                 names.extend_from_slice(&[ListItem::new("Start"), ListItem::new("End")]);
                 bufs.extend_from_slice(&[edit_bufs.text(Start), edit_bufs.text(End)]);
                 if has_break {
-                    bufs.extend_from_slice(&[
-                        edit_bufs.text(BreakStart),
-                        edit_bufs.text(BreakEnd),
-                    ]);
+                    bufs.extend_from_slice(&[edit_bufs.text(BreakStart), edit_bufs.text(BreakEnd)]);
                     names.extend_from_slice(&[
                         ListItem::new("Break Start"),
                         ListItem::new("Break End"),
@@ -248,7 +245,7 @@ pub fn render_help_popup(frame: &mut Frame, area: &Rect, state: &AppState) {
         "          j/k  scroll down/up",
         "      <c-u/d>  scroll down/up by 5",
         "    l/<enter>  enter edit mode - move on selection",
-        "            +  add new entry",
+        "          +/a  add new entry",
     ]
     .as_slice();
 
@@ -466,5 +463,3 @@ fn render_statistics_popup(frame: &mut Frame, area: &Rect, stats: &StatsState) {
         right,
     );
 }
-
-
