@@ -191,6 +191,7 @@ fn handle_events_edit(state: &mut AppState) -> Result<bool, ()> {
                             state.days[*selected] = val;
                             state.message =
                                 Message::Info(String::from("WorkDay parsed successfully"));
+                            state.days.sort_by_key(|day| day.date);
                         }
                         Err(err) => state.message = Message::Error(err),
                     },

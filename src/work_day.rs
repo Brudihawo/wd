@@ -75,4 +75,13 @@ impl WorkDay {
             }
         }
     }
+
+    pub fn break_time(&self) -> Duration {
+        match &self.day_type {
+            DayType::Present { brk, .. } | DayType::Unofficial { brk: Some(brk), .. } => {
+                brk.end - brk.start
+            }
+            DayType::Sick | DayType::Unofficial { brk: None, .. } => Duration::zero(),
+        }
+    }
 }
