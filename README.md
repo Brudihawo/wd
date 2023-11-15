@@ -3,8 +3,6 @@ wd - A Minimal Workday Time Tracker with Vim-like Keybindings
 
 A terminal workday tracker with vim-like keybindings. Useful for quickly noting down your working times in the terminal. Also includes Features to show statistics of your working times. Stores all of the data in human-readable `JSON`-files.
 
-[TOC]
-
 ## Quickstart
 
 
