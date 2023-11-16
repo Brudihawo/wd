@@ -76,6 +76,7 @@ impl StatUnit {
     }
 
     pub fn push_day(&mut self, day: &WorkDay) {
+        self.num_days += 1;
         match &day.day_type {
             DayType::Present { start, end, .. } | DayType::Unofficial { start, end, .. } => {
                 self.update_mean_start(start);

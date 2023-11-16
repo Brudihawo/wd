@@ -1,3 +1,4 @@
+use chrono::Datelike;
 use ratatui::text::{Line, Text};
 use ratatui::widgets::{Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState};
 use static_assertions::const_assert_eq;
@@ -339,8 +340,8 @@ fn render_statistics_popup(frame: &mut Frame, area: &Rect, stats: &StatsState) {
     );
 
     let header = format!(
-        "{:12} {:10} {:7} {:11} {:9}",
-        "Week Start", "Week End", "Hours", "Active Days", "Sick Days"
+        "  {:>10}{:>7}{:>6}{:>6}{:>6}{:>6}",
+        "Week Start", "Hours", "Work", "Sick", "HO", "UnOf",
     )
     .bold()
     .fg(ORANGE);
@@ -356,14 +357,14 @@ fn render_statistics_popup(frame: &mut Frame, area: &Rect, stats: &StatsState) {
         .weekly
         .iter()
         .map(|(week_start, stat)| {
-            let week_end = week_start.week(chrono::Weekday::Mon).last_day();
             ListItem::new(format!(
-                "{:12} {:10} {:7} {:11} {:9}",
+                "{:>10}{:>7}{:>6}{:>6}{:>6}{:>6}",
                 week_start.format("%d.%m.%y"),
-                week_end.format("%d.%m.%y"),
                 hm_from_duration(stat.work),
                 stat.active_days,
                 stat.sick_days,
+                stat.home_office_days,
+                stat.active_days - stat.home_office_days,
             ))
         })
         .collect::<Vec<_>>();
@@ -429,29 +430,28 @@ fn render_statistics_popup(frame: &mut Frame, area: &Rect, stats: &StatsState) {
             .into(),
         ]),
         Line::from(""),
-        Line::from("Days".fg(STAT_CLR).bold()),
         Line::from(vec![
-            "Worked: ".fg(STAT_CLR),
-            format!(
-                "{:4} ({:.1}%)",
-                stats.total.active_days,
-                stats.total.active_days as f64
-                    / (stats.total.sick_days + stats.total.active_days) as f64
-                    * 100.0
-            )
-            .into(),
+            "Days: ".fg(STAT_CLR).bold(),
+            format!("{:4}", stats.total.num_days).into(),
         ]),
-        Line::from(vec![
-            "Sick:   ".fg(STAT_CLR),
-            format!(
-                "{:4} ({:.1}%)",
-                stats.total.sick_days,
-                stats.total.sick_days as f64
-                    / (stats.total.sick_days + stats.total.active_days) as f64
-                    * 100.0
-            )
-            .into(),
-        ]),
+        Line::from("Worked".fg(STAT_CLR)),
+        Line::from(format!(
+            "{:4} ({:.1}%)",
+            stats.total.active_days,
+            stats.total.active_days as f64 / stats.total.num_days as f64 * 100.0
+        )),
+        Line::from("Sick".fg(STAT_CLR)),
+        Line::from(format!(
+            "{:4} ({:.1}%)",
+            stats.total.sick_days,
+            stats.total.sick_days as f64 / stats.total.num_days as f64 * 100.0
+        )),
+        Line::from("Home Office".fg(STAT_CLR)),
+        Line::from(format!(
+            "{:4} ({:.1}%)",
+            stats.total.home_office_days,
+            stats.total.home_office_days as f64 / stats.total.num_days as f64 * 100.0
+        )),
     ]);
     frame.render_widget(
         Paragraph::new(total).style(Style::default()).block(
