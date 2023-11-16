@@ -14,6 +14,7 @@ pub enum EditField {
 #[derive(Copy, Clone)]
 pub enum EditDayType {
     Present,
+    HomeOffice,
     Sick,
     Unofficial { has_break: bool },
 }
@@ -22,7 +23,8 @@ impl EditDayType {
     pub fn next(&self) -> Self {
         use EditDayType::*;
         match self {
-            Present => Sick,
+            Present => HomeOffice,
+            HomeOffice => Sick,
             Sick => Unofficial { has_break: false },
             Unofficial { has_break: false } => Unofficial { has_break: true },
             Unofficial { has_break: true } => Present,
@@ -33,7 +35,8 @@ impl EditDayType {
         use EditDayType::*;
         match self {
             Present => Unofficial { has_break: true },
-            Sick => Present,
+            HomeOffice => Present,
+            Sick => HomeOffice,
             Unofficial { has_break: false } => Sick,
             Unofficial { has_break: true } => Unofficial { has_break: false },
         }
@@ -44,7 +47,7 @@ impl EditField {
     pub fn next(&self, day_type: EditDayType) -> Self {
         use EditField::*;
         match day_type {
-            EditDayType::Present => match self {
+            EditDayType::Present | EditDayType::HomeOffice => match self {
                 Date => DayType,
                 DayType => Start,
                 Start => End,
@@ -83,7 +86,7 @@ impl EditField {
     pub fn prev(&self, day_type: EditDayType) -> Self {
         use EditField::*;
         match day_type {
-            EditDayType::Present => match self {
+            EditDayType::Present | EditDayType::HomeOffice => match self {
                 Date => BreakEnd,
                 DayType => Date,
                 Start => DayType,
@@ -181,6 +184,15 @@ impl From<&WorkDay> for EditBufs {
                         start: break_start,
                         end: break_end,
                     },
+            }
+            | DayType::HomeOffice {
+                start,
+                end,
+                brk:
+                    Break {
+                        start: break_start,
+                        end: break_end,
+                    },
             } => {
                 ret.cursors[E::Start as usize] = ret[E::Start]
                     .iter_mut()
@@ -254,11 +266,23 @@ impl TryInto<WorkDay> for &EditBufs {
                             "%H:%M:%S",
                         )
                         .map_err(|err| format!("could not parse Break Start: {err}"))?,
-                        end: NaiveTime::parse_from_str(
-                            self.text(EditField::BreakEnd),
+                        end: NaiveTime::parse_from_str(self.text(EditField::BreakEnd), "%H:%M:%S")
+                            .map_err(|err| format!("could not parse Break End {err}"))?,
+                    },
+                },
+                EditDayType::HomeOffice => DayType::HomeOffice {
+                    start: NaiveTime::parse_from_str(self.text(EditField::Start), "%H:%M:%S")
+                        .map_err(|err| format!("could not parse Start: {err}"))?,
+                    end: NaiveTime::parse_from_str(self.text(EditField::End), "%H:%M:%S")
+                        .map_err(|err| format!("could not parse End: {err}"))?,
+                    brk: Break {
+                        start: NaiveTime::parse_from_str(
+                            self.text(EditField::BreakStart),
                             "%H:%M:%S",
                         )
-                        .map_err(|err| format!("could not parse Break End {err}"))?,
+                        .map_err(|err| format!("could not parse Break Start: {err}"))?,
+                        end: NaiveTime::parse_from_str(self.text(EditField::BreakEnd), "%H:%M:%S")
+                            .map_err(|err| format!("could not parse Break End {err}"))?,
                     },
                 },
                 EditDayType::Sick => DayType::Sick,

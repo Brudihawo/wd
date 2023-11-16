@@ -71,10 +71,10 @@ enum Action {
     long_about = None
 )]
 struct Args {
-    #[arg(default_value = "work_times.json")]
-    file_path: String,
     #[command(subcommand)]
     action: Option<Action>,
+    #[arg(default_value = "work_times.json")]
+    file_path: String,
 }
 
 fn tui_loop(mut state: AppState) -> Result<(), ()> {

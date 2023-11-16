@@ -79,6 +79,7 @@ fn render_edit_window(frame: &mut Frame, pos: &Rect, state: &AppState) {
             edit_bufs.text(Date),
             match edit_bufs.day_type {
                 EditDayType::Present => "Present",
+                EditDayType::HomeOffice => "Home Office",
                 EditDayType::Sick => "Sick",
                 EditDayType::Unofficial { has_break } => {
                     if has_break {
@@ -91,7 +92,7 @@ fn render_edit_window(frame: &mut Frame, pos: &Rect, state: &AppState) {
         ];
 
         match edit_bufs.day_type {
-            EditDayType::Present => {
+            EditDayType::Present | EditDayType::HomeOffice => {
                 names.extend_from_slice(&[
                     ListItem::new("Start"),
                     ListItem::new("End"),

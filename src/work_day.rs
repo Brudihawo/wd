@@ -25,6 +25,12 @@ pub enum DayType {
         #[serde(flatten)]
         brk: Break,
     },
+    HomeOffice {
+        start: NaiveTime,
+        end: NaiveTime,
+        #[serde(flatten)]
+        brk: Break,
+    },
     Sick,
     Unofficial {
         start: NaiveTime,
@@ -54,6 +60,9 @@ impl WorkDay {
             DayType::Present { start, end, .. } => {
                 format!("{date} -> Present {start} - {end}", date = self.date)
             }
+            DayType::HomeOffice { start, end, .. } => {
+                format!("{date} -> Home Office {start} - {end}", date = self.date)
+            }
             DayType::Unofficial { start, end, .. } => {
                 format!("{date} -> Unofficial {start} - {end}", date = self.date)
             }
@@ -66,6 +75,7 @@ impl WorkDay {
     pub fn worked_time(&self) -> Duration {
         match &self.day_type {
             DayType::Present { start, end, brk } => *end - *start - (brk.end - brk.start),
+            DayType::HomeOffice { start, end, brk } => *end - *start - (brk.end - brk.start),
             DayType::Sick => Duration::zero(),
             DayType::Unofficial { start, end, brk } => {
                 *end - *start
@@ -78,9 +88,9 @@ impl WorkDay {
 
     pub fn break_time(&self) -> Duration {
         match &self.day_type {
-            DayType::Present { brk, .. } | DayType::Unofficial { brk: Some(brk), .. } => {
-                brk.end - brk.start
-            }
+            DayType::Present { brk, .. }
+            | DayType::HomeOffice { brk, .. }
+            | DayType::Unofficial { brk: Some(brk), .. } => brk.end - brk.start,
             DayType::Sick | DayType::Unofficial { brk: None, .. } => Duration::zero(),
         }
     }

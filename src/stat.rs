@@ -6,6 +6,8 @@ pub struct StatUnit {
     pub work: Duration,
     pub active_days: u32,
     pub sick_days: u32,
+    pub home_office_days: u32,
+    pub num_days: u32,
 
     pub brk: Duration,
 
@@ -20,13 +22,26 @@ impl StatUnit {
                 work: day.worked_time(),
                 active_days: 1,
                 sick_days: 0,
+                home_office_days: 0,
+                num_days: 1,
                 brk: day.break_time(),
+                mean_start: Some(*start),
+                mean_end: Some(*end),
+            },
+            DayType::HomeOffice { start, end, .. } => Self {
+                work: day.worked_time(),
+                active_days: 1,
+                sick_days: 0,
+                num_days: 1,
+                brk: day.break_time(),
+                home_office_days: 1,
                 mean_start: Some(*start),
                 mean_end: Some(*end),
             },
             DayType::Sick => {
                 let mut ret = Self::default();
                 ret.sick_days = 1;
+                ret.num_days = 1;
                 return ret;
             }
         }
@@ -70,6 +85,15 @@ impl StatUnit {
 
                 self.active_days += 1;
             }
+            DayType::HomeOffice { start, end, .. } => {
+                self.update_mean_start(start);
+                self.update_mean_end(end);
+                self.brk = self.brk + day.break_time();
+                self.work = self.work + day.worked_time();
+                self.home_office_days += 1;
+
+                self.active_days += 1;
+            }
             DayType::Sick => self.sick_days += 1,
         }
     }
@@ -105,6 +129,8 @@ impl Default for StatUnit {
             work: Duration::zero(),
             active_days: 0,
             sick_days: 0,
+            num_days: 0,
+            home_office_days: 0,
             brk: Duration::zero(),
             mean_start: None,
             mean_end: None,
