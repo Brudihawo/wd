@@ -42,6 +42,7 @@ Once the app is launched, you can view the keybindings using the `?-Key`.
 - [x] basic working editor
 - [x] messages from editor to UI
 - [x] unofficial day type
+- [x] home office day type
 - [x] delete entry
 - [x] arg-parsing and default arguments
 - [x] write back to file
