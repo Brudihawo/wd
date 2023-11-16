@@ -175,6 +175,25 @@ fn render_edit_window(frame: &mut Frame, pos: &Rect, state: &AppState) {
 }
 
 fn render_list(frame: &mut Frame, pos: &Rect, state: &AppState, active: bool) {
+    frame.render_widget(Clear, *pos);
+    frame.render_widget(
+        Block::default()
+            .title("Work Days")
+            .borders(Borders::ALL)
+            .border_style(if active {
+                Style::default().fg(MOVE_CLR)
+            } else {
+                Style::default().fg(Color::Gray)
+            }),
+        *pos,
+    );
+
+    let inner_area = Rect {
+        x: pos.x + 1,
+        y: pos.y + 1,
+        width: pos.width - 3,
+        height: pos.height - 3,
+    };
     frame.render_stateful_widget(
         List::new(
             state
@@ -183,20 +202,22 @@ fn render_list(frame: &mut Frame, pos: &Rect, state: &AppState, active: bool) {
                 .map(|day| ListItem::new(day.to_string()))
                 .collect::<Vec<_>>(),
         )
-        .block(
-            Block::default()
-                .title("Work Days")
-                .borders(Borders::ALL)
-                .border_style(if active {
-                    Style::default().fg(MOVE_CLR)
-                } else {
-                    Style::default().fg(Color::Gray)
-                }),
-        )
         .highlight_symbol("> ")
         .highlight_style(Style::default().fg(MOVE_CLR).bold()),
-        *pos,
+        inner_area,
         &mut ListState::default().with_selected(state.selected),
+    );
+
+    let scrollbar_area = Rect {
+        x: inner_area.x + inner_area.width,
+        y: pos.y + 1,
+        width: 1,
+        height: pos.height - 2,
+    };
+    frame.render_stateful_widget(
+        Scrollbar::default().orientation(ScrollbarOrientation::VerticalRight),
+        scrollbar_area,
+        &mut ScrollbarState::new(state.days.len()).position(state.selected.unwrap() as usize),
     );
 }
 

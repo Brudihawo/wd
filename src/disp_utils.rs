@@ -5,7 +5,7 @@ use chrono::Duration;
 pub fn hm_from_duration(duration: Duration) -> String {
     let hours = duration.num_hours();
     let minutes = duration.num_minutes() - hours * 60;
-    format!("{hours:2}:{minutes:02}")
+    format!("{hours:02}:{minutes:02}")
 }
 
 pub fn print_stat(

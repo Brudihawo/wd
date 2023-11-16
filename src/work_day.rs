@@ -1,6 +1,8 @@
 use chrono::{Duration, NaiveDate, NaiveTime};
 use serde::{self, Deserialize, Serialize};
 
+use crate::disp_utils::hm_from_duration;
+
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub struct Break {
     #[serde(rename = "break_start")]
@@ -58,16 +60,37 @@ impl WorkDay {
     pub fn to_string(&self) -> String {
         match self.day_type {
             DayType::Present { start, end, .. } => {
-                format!("{date} -> Present {start} - {end}", date = self.date)
+                format!(
+                    "{date} -> {:11}  {start} - {end} ({time}h)",
+                    "Present",
+                    start = start.format("%H:%M"),
+                    end = end.format("%H:%M"),
+                    date = self.date.format("%d.%m.%y"),
+                    time = hm_from_duration(self.worked_time()),
+                )
             }
             DayType::HomeOffice { start, end, .. } => {
-                format!("{date} -> Home Office {start} - {end}", date = self.date)
+                format!(
+                    "{date} -> {:11}  {start} - {end} ({time}h)",
+                    "Home Office",
+                    start = start.format("%H:%M"),
+                    end = end.format("%H:%M"),
+                    date = self.date.format("%d.%m.%y"),
+                    time = hm_from_duration(self.worked_time()),
+                )
             }
             DayType::Unofficial { start, end, .. } => {
-                format!("{date} -> Unofficial {start} - {end}", date = self.date)
+                format!(
+                    "{date} -> {:11}  {start} - {end} ({time}h)",
+                    "Unofficial",
+                    start = start.format("%H:%M"),
+                    end = end.format("%H:%M"),
+                    date = self.date.format("%d.%m.%y"),
+                    time = hm_from_duration(self.worked_time()),
+                )
             }
             DayType::Sick => {
-                format!("{date} -> Sick", date = self.date)
+                format!("{date} -> Sick", date = self.date.format("%d.%m.%y"))
             }
         }
     }
