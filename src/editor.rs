@@ -214,7 +214,11 @@ impl From<&WorkDay> for EditBufs {
                     .zip(break_end.to_string().as_bytes())
                     .map(|(b, sb)| *b = *sb)
                     .count() as u8;
-                ret.day_type = EditDayType::Present;
+                ret.day_type = match day.day_type {
+                    DayType::Present { .. } => EditDayType::Present,
+                    DayType::HomeOffice { .. } => EditDayType::HomeOffice,
+                    _ => unreachable!(),
+                }
             }
             DayType::Sick => ret.day_type = EditDayType::Sick,
             DayType::Unofficial { start, end, brk } => {
