@@ -1,4 +1,4 @@
-use chrono::Datelike;
+use chrono::{Datelike, Duration};
 use ratatui::text::{Line, Text};
 use ratatui::widgets::{Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState};
 use static_assertions::const_assert_eq;
@@ -361,8 +361,8 @@ fn render_statistics_popup(frame: &mut Frame, area: &Rect, stats: &StatsState) {
     );
 
     let header = format!(
-        "  {:>10}{:>7}{:>6}{:>6}{:>6}{:>6}",
-        "Week Start", "Hours", "Work", "Sick", "HO", "UnOf",
+        "  {:>10}{:>7}{:>6}{:>6}{:>6}{:>6}{:>8}",
+        "Week Start", "Hours", "Work", "Sick", "HO", "UnOf", "AmtDif",
     )
     .bold()
     .fg(ORANGE);
@@ -374,18 +374,27 @@ fn render_statistics_popup(frame: &mut Frame, area: &Rect, stats: &StatsState) {
         height: area.height - 2,
     };
 
+    let mut tot_surplus = Duration::minutes(0);
+
     let stat_collect = stats
         .weekly
         .iter()
         .map(|(week_start, stat)| {
+            let surplus = stat.work
+                - Duration::milliseconds((stats.week_hours * 60.0 * 60.0 * 1000.0) as i64);
+            tot_surplus = surplus + tot_surplus;
+            let s_mins = surplus.num_minutes();
             ListItem::new(format!(
-                "{:>10}{:>7}{:>6}{:>6}{:>6}{:>6}",
+                "{:>10}{:>7}{:>6}{:>6}{:>6}{:>6}  {}{:>2}:{:>02}",
                 week_start.format("%d.%m.%y"),
                 hm_from_duration(stat.work),
                 stat.active_days,
                 stat.sick_days,
                 stat.home_office_days,
                 stat.active_days - stat.home_office_days,
+                if s_mins >= 0 { "+" } else { "-" },
+                (s_mins / 60).abs(),
+                (s_mins % 60).abs(),
             ))
         })
         .collect::<Vec<_>>();
@@ -472,6 +481,17 @@ fn render_statistics_popup(frame: &mut Frame, area: &Rect, stats: &StatsState) {
             "{:4} ({:.1}%)",
             stats.total.home_office_days,
             stats.total.home_office_days as f64 / stats.total.num_days as f64 * 100.0
+        )),
+        Line::from("Total Surplus".fg(STAT_CLR)),
+        Line::from(format!(
+            "{}{:3}:{:2}",
+            if tot_surplus.num_minutes() >= 0 {
+                "+"
+            } else {
+                "-"
+            },
+            tot_surplus.num_minutes().abs() / 60,
+            tot_surplus.num_minutes().abs() % 60,
         )),
     ]);
     frame.render_widget(

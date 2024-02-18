@@ -36,11 +36,17 @@ pub struct StatsState {
     pub weekly: Vec<(NaiveDate, StatUnit)>,
     pub total: StatUnit,
     pub scroll: usize,
+    pub week_hours: f32,
+}
+
+pub struct Settings {
+    pub week_hours: f32,
 }
 
 pub struct AppState {
     pub file_path: String,
     pub days: Vec<WorkDay>,
+    pub settings: Settings,
     pub selected: Option<usize>,
     pub mode: AppMode,
     pub message: Message,

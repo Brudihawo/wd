@@ -10,7 +10,7 @@ use crossterm::ExecutableCommand;
 use ratatui::prelude::{CrosstermBackend, Terminal};
 
 use wd::app::{events::handle_events, render::render_application};
-use wd::app::{AppMode, AppState, Message};
+use wd::app::{AppMode, AppState, Message, Settings};
 use wd::disp_utils::print_stat;
 use wd::work_day::WorkDay;
 
@@ -110,13 +110,14 @@ fn main() -> Result<(), ()> {
                     len = days.len(),
                     path = args.file_path
                 )),
+                settings: Settings { week_hours: 38.5 },
                 file_path: args.file_path,
                 days,
                 mode: AppMode::ListOnly,
                 help_popup: None,
                 statistics: None,
             };
-            return tui_loop(state);
+            tui_loop(state)
         }
         Some(Action::Create) => {
             let state = AppState {
@@ -125,13 +126,14 @@ fn main() -> Result<(), ()> {
                     "Created new collection with save path {path}",
                     path = args.file_path
                 )),
+                settings: Settings { week_hours: 38.5 },
                 file_path: args.file_path,
                 days: Vec::new(),
                 mode: AppMode::ListOnly,
                 help_popup: None,
                 statistics: None,
             };
-            return tui_loop(state);
+            tui_loop(state)
         }
         Some(Action::Stat) => {
             use wd::stat::{total_stats, weekly_stats};
@@ -148,7 +150,7 @@ fn main() -> Result<(), ()> {
             let stat_weekly = weekly_stats(&days);
             let employ_duration = days.last().unwrap().date - days.first().unwrap().date;
 
-            return print_stat(&stat_weekly, &stat_total, &employ_duration);
+            print_stat(&stat_weekly, &stat_total, &employ_duration)
         }
     }
 }

@@ -167,6 +167,7 @@ fn handle_events_listonly(state: &mut AppState) -> Result<bool, ()> {
                             Some(StatsState {
                                 weekly: weekly_stats(&state.days),
                                 total,
+                                week_hours: state.settings.week_hours,
                                 scroll: 0,
                             })
                         } else {
