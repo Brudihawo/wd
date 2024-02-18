@@ -217,7 +217,7 @@ fn render_list(frame: &mut Frame, pos: &Rect, state: &AppState, active: bool) {
     frame.render_stateful_widget(
         Scrollbar::default().orientation(ScrollbarOrientation::VerticalRight),
         scrollbar_area,
-        &mut ScrollbarState::new(state.days.len()).position(state.selected.unwrap() as usize),
+        &mut ScrollbarState::new(state.days.len()).position(state.selected.unwrap_or(0) as usize),
     );
 }
 
