@@ -33,13 +33,18 @@ pub enum DayType {
         #[serde(flatten)]
         brk: Break,
     },
-    Sick,
     Unofficial {
         start: NaiveTime,
         end: NaiveTime,
         #[serde(flatten)]
         brk: Option<Break>,
     },
+    Travel {
+        start: NaiveTime,
+        end: NaiveTime,
+    },
+    Sick,
+    Vacation,
 }
 
 impl Default for DayType {
@@ -92,6 +97,19 @@ impl WorkDay {
             DayType::Sick => {
                 format!("{date} -> Sick", date = self.date.format("%d.%m.%y"))
             }
+            DayType::Travel { start, end } => {
+                format!(
+                    "{date} -> {:11}  {start} - {end} ({time}h)",
+                    "Travel",
+                    start = start.format("%H:%M"),
+                    end = end.format("%H:%M"),
+                    date = self.date.format("%d.%m.%y"),
+                    time = hm_from_duration(self.worked_time()),
+                )
+            }
+            DayType::Vacation => {
+                format!("{date} -> Vacation", date = self.date.format("%d.%m.%y"))
+            }
         }
     }
 
@@ -106,6 +124,8 @@ impl WorkDay {
                         .as_ref()
                         .map_or(Duration::zero(), |brk| brk.end - brk.start)
             }
+            DayType::Travel { start, end } => *end - *start,
+            DayType::Vacation => Duration::zero(),
         }
     }
 
@@ -114,7 +134,10 @@ impl WorkDay {
             DayType::Present { brk, .. }
             | DayType::HomeOffice { brk, .. }
             | DayType::Unofficial { brk: Some(brk), .. } => brk.end - brk.start,
-            DayType::Sick | DayType::Unofficial { brk: None, .. } => Duration::zero(),
+            DayType::Travel { .. }
+            | DayType::Vacation
+            | DayType::Sick
+            | DayType::Unofficial { brk: None, .. } => Duration::zero(),
         }
     }
 }

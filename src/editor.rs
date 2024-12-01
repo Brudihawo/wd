@@ -16,29 +16,35 @@ pub enum EditDayType {
     Present,
     HomeOffice,
     Sick,
+    Vacation,
     Unofficial { has_break: bool },
+    Travel,
 }
 
 impl EditDayType {
     pub fn next(&self) -> Self {
         use EditDayType::*;
         match self {
-            Present => HomeOffice,
-            HomeOffice => Sick,
-            Sick => Unofficial { has_break: false },
+            Present => Travel,
+            Travel => HomeOffice,
+            HomeOffice => Unofficial { has_break: false },
             Unofficial { has_break: false } => Unofficial { has_break: true },
-            Unofficial { has_break: true } => Present,
+            Unofficial { has_break: true } => Sick,
+            Sick => Vacation,
+            Vacation => Present,
         }
     }
 
     pub fn prev(&self) -> Self {
         use EditDayType::*;
         match self {
-            Present => Unofficial { has_break: true },
-            HomeOffice => Present,
-            Sick => HomeOffice,
-            Unofficial { has_break: false } => Sick,
+            Travel => Present,
+            HomeOffice => Travel,
+            Unofficial { has_break: false } => HomeOffice,
             Unofficial { has_break: true } => Unofficial { has_break: false },
+            Sick => Unofficial { has_break: true },
+            Vacation => Sick,
+            Present => Vacation,
         }
     }
 }
@@ -80,6 +86,18 @@ impl EditField {
                     }
                 }
             }
+            EditDayType::Vacation => match self {
+                Date => DayType,
+                DayType => Date,
+                Start | End | BreakStart | BreakEnd => unreachable!(),
+            },
+            EditDayType::Travel => match self {
+                Date => DayType,
+                DayType => Start,
+                Start => End,
+                End => Date,
+                BreakStart | BreakEnd => unreachable!(),
+            },
         }
     }
 
@@ -119,6 +137,18 @@ impl EditField {
                     }
                 }
             }
+            EditDayType::Vacation => match self {
+                DayType => Date,
+                Date => DayType,
+                Start | End | BreakStart | BreakEnd => unreachable!(),
+            },
+            EditDayType::Travel => match self {
+                DayType => Date,
+                Start => DayType,
+                End => Start,
+                Date => End,
+                BreakStart | BreakEnd => unreachable!(),
+            },
         }
     }
 }
@@ -243,9 +273,24 @@ impl From<&WorkDay> for EditBufs {
                         .zip(b.end.format("%H:%M").to_string().as_bytes())
                         .map(|(b, sb)| *b = *sb)
                         .count() as u8;
+                    ret.day_type = EditDayType::Unofficial { has_break: true };
                 }
-                ret.day_type = EditDayType::Sick;
+                ret.day_type = EditDayType::Unofficial { has_break: false };
             }
+            DayType::Travel { start, end } => {
+                ret.cursors[E::Start as usize] = ret[E::Start]
+                    .iter_mut()
+                    .zip(start.to_string().as_bytes())
+                    .map(|(b, sb)| *b = *sb)
+                    .count() as u8;
+                ret.cursors[E::End as usize] = ret[E::End]
+                    .iter_mut()
+                    .zip(end.to_string().as_bytes())
+                    .map(|(b, sb)| *b = *sb)
+                    .count() as u8;
+                ret.day_type = EditDayType::Travel
+            }
+            DayType::Vacation => ret.day_type = EditDayType::Vacation,
         }
         ret
     }
@@ -311,6 +356,13 @@ impl TryInto<WorkDay> for &EditBufs {
                     } else {
                         None
                     },
+                },
+                EditDayType::Vacation => DayType::Vacation,
+                EditDayType::Travel => DayType::Travel {
+                    start: NaiveTime::parse_from_str(self.text(EditField::Start), "%H:%M:%S")
+                        .map_err(|err| format!("could not parse Start: {err}"))?,
+                    end: NaiveTime::parse_from_str(self.text(EditField::End), "%H:%M:%S")
+                        .map_err(|err| format!("could not parse End: {err}"))?,
                 },
             },
         })

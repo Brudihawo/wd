@@ -82,6 +82,8 @@ fn render_edit_window(frame: &mut Frame, pos: &Rect, state: &AppState) {
                 EditDayType::Present => "Present",
                 EditDayType::HomeOffice => "Home Office",
                 EditDayType::Sick => "Sick",
+                EditDayType::Vacation => "Vacation",
+                EditDayType::Travel => "Travel",
                 EditDayType::Unofficial { has_break } => {
                     if has_break {
                         "Unofficial (with break)"
@@ -107,7 +109,7 @@ fn render_edit_window(frame: &mut Frame, pos: &Rect, state: &AppState) {
                     edit_bufs.text(BreakEnd),
                 ]);
             }
-            EditDayType::Sick => (),
+            EditDayType::Sick | EditDayType::Vacation => (),
             EditDayType::Unofficial { has_break } => {
                 names.extend_from_slice(&[ListItem::new("Start"), ListItem::new("End")]);
                 bufs.extend_from_slice(&[edit_bufs.text(Start), edit_bufs.text(End)]);
@@ -118,6 +120,10 @@ fn render_edit_window(frame: &mut Frame, pos: &Rect, state: &AppState) {
                         ListItem::new("Break End"),
                     ]);
                 }
+            }
+            EditDayType::Travel => {
+                names.extend_from_slice(&[ListItem::new("Start"), ListItem::new("End")]);
+                bufs.extend_from_slice(&[edit_bufs.text(Start), edit_bufs.text(End)]);
             }
         }
 

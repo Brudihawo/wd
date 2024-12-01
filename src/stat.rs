@@ -44,6 +44,22 @@ impl StatUnit {
                 ret.num_days = 1;
                 return ret;
             }
+            DayType::Travel { start, end } => Self {
+                work: day.worked_time(),
+                active_days: 1,
+                sick_days: 0,
+                num_days: 1,
+                brk: day.break_time(),
+                home_office_days: 1,
+                mean_start: Some(*start),
+                mean_end: Some(*end),
+            },
+            DayType::Vacation => {
+                let mut ret = Self::default();
+                ret.sick_days = 0;
+                ret.num_days = 1;
+                return ret;
+            }
         }
     }
 
@@ -96,6 +112,11 @@ impl StatUnit {
                 self.active_days += 1;
             }
             DayType::Sick => self.sick_days += 1,
+            DayType::Travel { start, end } => {
+                self.update_mean_start(start);
+                self.update_mean_end(end);
+            }
+            DayType::Vacation => (),
         }
     }
 }
