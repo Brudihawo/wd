@@ -70,6 +70,7 @@ enum Action {
     about = "Keep track of your work times in the terminal",
     long_about = None
 )]
+
 struct Args {
     #[command(subcommand)]
     action: Option<Action>,
@@ -110,7 +111,7 @@ fn main() -> Result<(), ()> {
                     len = days.len(),
                     path = args.file_path
                 )),
-                settings: Settings { week_hours: 38.5 },
+                settings: Settings { week_hours: 39.5 },
                 file_path: args.file_path,
                 days,
                 mode: AppMode::ListOnly,
@@ -126,7 +127,7 @@ fn main() -> Result<(), ()> {
                     "Created new collection with save path {path}",
                     path = args.file_path
                 )),
-                settings: Settings { week_hours: 38.5 },
+                settings: Settings { week_hours: 39.5 },
                 file_path: args.file_path,
                 days: Vec::new(),
                 mode: AppMode::ListOnly,
